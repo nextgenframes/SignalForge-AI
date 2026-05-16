@@ -33,6 +33,25 @@ npm run build
 node server.js
 ```
 
+## IBM Bob Setup
+
+This repo includes project-level IBM Bob configuration:
+
+- `.bob/custom_modes.yaml` defines the `triage-partner` custom mode.
+- `.bob/rules-triage-partner/` defines the JSON response contract Bob should return.
+- `.bob/commands/triage-alert.md` adds a `/triage-alert` command for raw alert analysis.
+
+When the project is opened in IBM Bob, Bob should detect the project mode from `.bob/custom_modes.yaml`. The app backend can also call an IBM Bob gateway endpoint when these environment variables are set:
+
+```text
+IBM_BOB_API_URL=https://your-bob-endpoint.example
+IBM_BOB_API_KEY=your_bob_token
+IBM_BOB_MODE=triage-partner
+IBM_BOB_PROJECT_ID=optional_project_id
+```
+
+If those values are not configured, the app falls back to the optional model providers below, then to the local demo triage playbook.
+
 ## Optional Model Setup
 
 The API can call Qwen through DashScope's OpenAI-compatible endpoint:

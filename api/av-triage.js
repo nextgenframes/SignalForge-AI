@@ -28,12 +28,44 @@ function readBody(req) {
 }
 
 function status(env) {
+  const bobConfigured = Boolean(env.IBM_BOB_API_URL && env.IBM_BOB_API_KEY);
   return {
+    ibm_bob_ready: bobConfigured,
+    ibm_bob_mode: env.IBM_BOB_MODE || "triage-partner",
     qwen_ready: Boolean(env.QWEN_API_KEY || env.DASHSCOPE_API_KEY || env.OPENROUTER_API_KEY),
     qwen_model: env.QWEN_MODEL || env.OPENROUTER_MODEL || QWEN_DEFAULT_MODEL,
     supabase_ready: Boolean(env.SUPABASE_URL && (env.SUPABASE_SERVICE_ROLE_KEY || env.SUPABASE_SECRET_KEY)),
     fallback_ready: true,
   };
+}
+
+function triagePrompt(input) {
+  const schema = {
+    severity: "Critical | High | Medium | Low",
+    confidence: "number from 0 to 1",
+    plain_english: "one or two direct sentences for a stressed on-call engineer",
+    affected_area: "most likely code area or service area",
+    service: "service name",
+    likely_files: ["likely file paths"],
+    commits: [{ hash: "short hash", message: "commit message", author: "author" }],
+    first_response_steps: ["exactly three ordered checks"],
+    risks: ["risks or false trails to watch"],
+    handoff_note: "short note suitable for shift handoff",
+    bob_actions: ["visible actions Bob took"],
+  };
+
+  return [
+    "You are IBM Bob in Triage Partner mode, an on-call triage engineer's AI partner.",
+    "Use repository context when available. Be fast, specific, and never vague.",
+    "Return only valid JSON. Do not wrap it in markdown.",
+    "If exact repo facts are unavailable, say the most likely area from the alert and avoid pretending certainty.",
+    "",
+    "Required JSON shape:",
+    JSON.stringify(schema),
+    "",
+    "Incident:",
+    JSON.stringify(input),
+  ].join("\n");
 }
 
 function inferService(rawAlert, provided) {
@@ -130,33 +162,7 @@ function normalizeTriage(parsed, input) {
 
 async function callQwen(input, env) {
   if (!status(env).qwen_ready) return fallbackBrief(input);
-
-  const schema = {
-    severity: "Critical | High | Medium | Low",
-    confidence: "number from 0 to 1",
-    plain_english: "one or two direct sentences for a stressed on-call engineer",
-    affected_area: "most likely code area or service area",
-    service: "service name",
-    likely_files: ["likely file paths"],
-    commits: [{ hash: "short hash", message: "commit message", author: "author" }],
-    first_response_steps: ["exactly three ordered checks"],
-    risks: ["risks or false trails to watch"],
-    handoff_note: "short note suitable for shift handoff",
-    bob_actions: ["visible actions Bob took"],
-  };
-
-  const prompt = [
-    "You are Bob on Call, an on-call triage engineer's AI partner.",
-    "Assume you have repository context. Be fast, specific, and never vague.",
-    "Return only valid JSON. Do not wrap it in markdown.",
-    "If exact repo facts are unavailable, say the most likely area from the alert and avoid pretending certainty.",
-    "",
-    "Required JSON shape:",
-    JSON.stringify(schema),
-    "",
-    "Incident:",
-    JSON.stringify(input),
-  ].join("\n");
+  const prompt = triagePrompt(input);
 
   if (env.OPENROUTER_API_KEY) {
     const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
@@ -207,6 +213,48 @@ async function callQwen(input, env) {
   return normalizeTriage(JSON.parse(data.choices?.[0]?.message?.content || "{}"), input);
 }
 
+function extractBobPayload(data) {
+  if (data && typeof data === "object") {
+    if (data.triage) return data.triage;
+    if (data.output) return data.output;
+    if (data.response) return data.response;
+    if (data.result) return data.result;
+    if (data.choices?.[0]?.message?.content) return data.choices[0].message.content;
+    if (data.message?.content) return data.message.content;
+  }
+  return data;
+}
+
+async function callIbmBob(input, env) {
+  if (!status(env).ibm_bob_ready) return null;
+
+  const response = await fetch(env.IBM_BOB_API_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${env.IBM_BOB_API_KEY}`,
+      ...(env.IBM_BOB_PROJECT_ID ? { "X-IBM-Bob-Project": env.IBM_BOB_PROJECT_ID } : {}),
+    },
+    body: JSON.stringify({
+      mode: env.IBM_BOB_MODE || "triage-partner",
+      prompt: triagePrompt(input),
+      input,
+      response_format: { type: "json_object" },
+    }),
+  });
+
+  if (!response.ok) throw new Error(await response.text());
+  const data = await response.json();
+  const payload = extractBobPayload(data);
+  const parsed = typeof payload === "string" ? JSON.parse(payload) : payload;
+  return normalizeTriage(parsed || {}, input);
+}
+
+async function triageIncident(input, env) {
+  if (status(env).ibm_bob_ready) return callIbmBob(input, env);
+  return callQwen(input, env);
+}
+
 async function supabaseFetch(path, options = {}, env = process.env) {
   const key = env.SUPABASE_SERVICE_ROLE_KEY || env.SUPABASE_SECRET_KEY;
   const baseUrl = env.SUPABASE_URL;
@@ -255,7 +303,7 @@ module.exports = async function handler(req, res) {
     if (!rawAlert.trim()) return json(res, 400, { error: "raw_alert is required." });
 
     const input = { title, service, raw_alert: rawAlert };
-    const triage = await callQwen(input, process.env);
+    const triage = await triageIncident(input, process.env);
     const record = {
       title,
       source: "Bob on Call",

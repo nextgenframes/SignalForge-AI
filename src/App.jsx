@@ -299,6 +299,7 @@ import React, { useEffect, useMemo, useState } from 'react';
       }
 
       function Header({ status }) {
+        const bobReady = Boolean(status && status.ibm_bob_ready);
         const modelReady = Boolean(status && status.qwen_ready);
         const dbReady = Boolean(status && status.supabase_ready);
         return React.createElement(
@@ -318,7 +319,8 @@ import React, { useEffect, useMemo, useState } from 'react';
             "div",
             { className: "status-row" },
             React.createElement("span", { className: "pill mode-pill" }, "♪ Performance Mode"),
-            React.createElement("span", { className: `pill ${modelReady ? "ready" : ""}` }, modelReady ? "Model ready" : "Local fallback ready"),
+            React.createElement("span", { className: `pill ${bobReady ? "ready" : ""}` }, bobReady ? "IBM Bob connected" : "IBM Bob project mode"),
+            React.createElement("span", { className: `pill ${modelReady ? "ready" : ""}` }, modelReady ? "Model backup ready" : "Local fallback ready"),
             React.createElement("span", { className: "pill ready" }, "Triage Partner mode"),
             React.createElement("span", { className: `pill ${dbReady ? "ready" : ""}` }, dbReady ? "Supabase ready" : "Local shift memory")
           )
