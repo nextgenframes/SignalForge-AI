@@ -3,6 +3,9 @@ import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 
 const require = createRequire(import.meta.url);
+const loadLocalEnv = require("./load-env.cjs");
+loadLocalEnv();
+
 const youtubeSearch = require("./api/youtube-search");
 const youtubeStatus = require("./api/youtube-status");
 const aiStatus = require("./api/ai-status");

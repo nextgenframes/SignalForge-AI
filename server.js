@@ -1,12 +1,15 @@
 const http = require("http");
 const fs = require("fs");
 const path = require("path");
+const loadLocalEnv = require("./load-env.cjs");
 const youtubeSearch = require("./api/youtube-search");
 const youtubeStatus = require("./api/youtube-status");
 const aiStatus = require("./api/ai-status");
 const avTriage = require("./api/av-triage");
 
 const root = __dirname;
+loadLocalEnv(root);
+
 const distRoot = path.join(root, "dist");
 const port = Number(process.env.PORT || 4173);
 const host = process.env.HOST || "127.0.0.1";
