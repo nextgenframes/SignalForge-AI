@@ -310,6 +310,11 @@ import React, { useEffect, useMemo, useState } from 'react';
             { className: "brand" },
             React.createElement(
               "div",
+              { className: "brand-mark", "aria-hidden": "true" },
+              React.createElement("img", { src: "/builder-bob-ui.png", alt: "" })
+            ),
+            React.createElement(
+              "div",
               null,
               React.createElement("h1", null, "Triage Bob"),
               React.createElement("p", { className: "subhead" }, "On-call response console")
@@ -318,11 +323,11 @@ import React, { useEffect, useMemo, useState } from 'react';
           React.createElement(
             "div",
             { className: "status-row" },
-            React.createElement("span", { className: "pill mode-pill" }, "♪ Performance Mode"),
-            React.createElement("span", { className: `pill ${bobReady ? "ready" : ""}` }, bobReady ? "IBM Bob connected" : "IBM Bob project mode"),
-            React.createElement("span", { className: `pill ${modelReady ? "ready" : ""}` }, modelReady ? "Model backup ready" : "Local fallback ready"),
-            React.createElement("span", { className: "pill ready" }, "Triage Partner mode"),
-            React.createElement("span", { className: `pill ${dbReady ? "ready" : ""}` }, dbReady ? "Supabase ready" : "Local shift memory")
+            React.createElement("span", { className: "pill mode-pill online" }, React.createElement("span", { className: "status-dot online" }), "Performance Mode"),
+            React.createElement("span", { className: `pill ${bobReady ? "ready online" : "offline"}` }, React.createElement("span", { className: `status-dot ${bobReady ? "online" : "offline"}` }), bobReady ? "IBM Bob connected" : "IBM Bob project mode"),
+            React.createElement("span", { className: `pill ${modelReady ? "ready online" : "online"}` }, React.createElement("span", { className: "status-dot online" }), modelReady ? "Model backup ready" : "Local fallback ready"),
+            React.createElement("span", { className: "pill ready online" }, React.createElement("span", { className: "status-dot online" }), "Triage Partner mode"),
+            React.createElement("span", { className: `pill ${dbReady ? "ready online" : "offline"}` }, React.createElement("span", { className: `status-dot ${dbReady ? "online" : "offline"}` }), dbReady ? "Supabase ready" : "Local shift memory")
           )
         );
       }
@@ -474,13 +479,6 @@ import React, { useEffect, useMemo, useState } from 'react';
                 { className: "brief-narrative" },
                 React.createElement("h2", null, result.plain_english),
                 React.createElement("p", null, result.handoff_note)
-              ),
-              React.createElement(
-                "div",
-                { className: "metric-strip" },
-                React.createElement(Metric, { label: "Affected area", value: result.affected_area }),
-                React.createElement(Metric, { label: "Service", value: result.service }),
-                React.createElement(Metric, { label: "First move", value: result.first_response_steps[0] || "Awaiting alert" })
               )
             )
           )
