@@ -1,718 +1,535 @@
 import React, { useEffect, useMemo, useState } from 'react';
 
-      const bobMode = [
-        "Bob Mode: Triage Partner",
-        "Full repository context available.",
-        "Translate alerts, identify likely code area, surface recent commits, list first checks.",
-        "Fast, specific, never vague."
-      ].join("\n");
+const issueTypes = [
+  "Perception issue",
+  "Prediction issue",
+  "Planning issue",
+  "Controls issue",
+  "Localization issue",
+  "Map issue",
+  "Sensor issue",
+  "Operator / scenario issue"
+];
 
-      const demoAlerts = [
-        {
-          id: "inc-checkout-001",
-          title: "Checkout latency over 2s",
-          service: "checkout-service",
-          severity: "Critical",
-          raw_alert:
-            "CRITICAL p99_latency_checkout_service > 2000ms for 8m. Region us-east-1. Error budget burn 14x. Recent deploy checkout-api@9f31c22.",
-          notes: [
-            { by: "Maya", text: "Confirmed spike starts two minutes after deploy 9f31c22. Rollback is available." },
-            { by: "Bob", text: "Likely path: checkout-service/src/payments/authorize.ts. New retry wrapper can multiply provider calls." }
-          ]
-        },
-        {
-          id: "inc-cart-002",
-          title: "Cart service 5xx surge",
-          service: "cart-service",
-          severity: "High",
-          raw_alert:
-            "HIGH cart_service_http_5xx_rate > 4% for 12m. Pod restarts increased. Redis command timeout p95=900ms.",
-          notes: [
-            { by: "Jon", text: "Redis cluster CPU is 88%. App restart loop only affects checkout-cart-worker." },
-            { by: "Bob", text: "Compare cache connection pool settings in cart-service/src/cache/client.ts." }
-          ]
-        },
-        {
-          id: "inc-webhook-003",
-          title: "Payment webhook backlog",
-          service: "payments-webhooks",
-          severity: "Medium",
-          raw_alert:
-            "MEDIUM payments_webhook_queue_depth > 18000 for 20m. Worker success rate 92%. Dead letter count flat.",
-          notes: [
-            { by: "Ari", text: "Third-party provider delivered delayed batch. Queue is draining slowly." }
-          ]
-        }
-      ];
+const severityMeta = {
+  S0: { label: "collision / injury / unsafe", rank: 0 },
+  S1: { label: "near miss / hard brake / VRU involved", rank: 1 },
+  S2: { label: "uncomfortable behavior but safe", rank: 2 },
+  S3: { label: "minor issue / data quality", rank: 3 }
+};
 
-      const blankBrief = {
-        severity: "Medium",
-        confidence: 0,
-        plain_english: "Paste a production alert and Bob will turn it into a first-response brief.",
-        affected_area: "Waiting for alert context.",
-        service: "Unknown",
-        likely_files: [],
-        commits: [],
-        first_response_steps: [],
-        risks: [],
-        handoff_note: "No active triage yet.",
-        bob_actions: []
-      };
+const fleetDashboard = {
+  tickets: [
+    { id: "AVOPS-9142", title: "Hard brake near cyclist", location: "San Francisco", vehicle: "AV-204", status: "New", repeat: "3x", severity: "S1" },
+    { id: "AVOPS-9138", title: "Late cone detection", location: "Phoenix", vehicle: "AV-118", status: "Recurring", repeat: "5x", severity: "S2" },
+    { id: "AVOPS-9129", title: "Wrong lane estimate", location: "Austin", vehicle: "AV-077", status: "Resolved", repeat: "2x", severity: "S2" },
+    { id: "AVOPS-9121", title: "Camera glare sensor drop", location: "Las Vegas", vehicle: "AV-331", status: "New", repeat: "1x", severity: "S3" },
+    { id: "AVOPS-9107", title: "Map closure stale", location: "Miami", vehicle: "AV-044", status: "Recurring", repeat: "4x", severity: "S2" }
+  ],
+  vehicles: ["AV-204", "AV-118", "AV-077", "AV-331", "AV-044", "AV-290"],
+  locations: [
+    { name: "San Francisco", count: 12 },
+    { name: "Phoenix", count: 9 },
+    { name: "Austin", count: 7 },
+    { name: "Las Vegas", count: 4 }
+  ]
+};
 
-      function seededBrief(alert) {
-        const raw = alert.raw_alert || "";
-        const service = alert.service || inferService(raw);
-        const critical = /critical|burn|p99|checkout/i.test(raw);
-        const high = /high|5xx|timeout|restart/i.test(raw);
-        const severity = critical ? "Critical" : high ? "High" : "Medium";
-        const fileBase = service.replace(/_/g, "-");
-        return {
-          severity,
-          confidence: critical ? 0.86 : high ? 0.74 : 0.62,
-          plain_english: critical
-            ? "Customers are likely waiting too long or failing during checkout, and the issue started close to a recent deploy."
-            : high
-              ? "A production service is returning elevated errors and needs quick isolation before the blast radius grows."
-              : "A queue or background workflow is unhealthy but still moving, so this is a controlled investigation unless it worsens.",
-          affected_area: `${service} request path and the most recent deployment touching latency, retries, or queue handling.`,
-          service,
-          likely_files: [
-            `${fileBase}/src/routes/checkout.ts`,
-            `${fileBase}/src/payments/authorize.ts`,
-            `${fileBase}/src/lib/retry-policy.ts`
-          ],
-          commits: [
-            { hash: "9f31c22", message: "Tune payment authorization retry wrapper", author: "riley" },
-            { hash: "4ab8d90", message: "Add checkout latency dashboard dimensions", author: "sam" },
-            { hash: "16de45a", message: "Refactor provider timeout handling", author: "maya" }
-          ],
-          first_response_steps: [
-            "Confirm whether the symptom began immediately after the latest deploy.",
-            "Check the affected service dashboard for latency, error rate, and dependency saturation.",
-            "Prepare rollback or feature-flag disablement while one teammate captures logs."
-          ],
-          risks: [
-            "Retries may be amplifying traffic to a dependency.",
-            "A rollback may hide evidence unless logs are captured first.",
-            "Customer-facing checkout errors should page payments and support in parallel."
-          ],
-          handoff_note: "Current lead theory is a recent checkout change affecting dependency calls. Preserve deploy timing, owner, rollback status, and any customer impact numbers.",
-          bob_actions: [
-            "Translated alert into plain English",
-            "Mapped alert terms to likely service and files",
-            "Selected the last three relevant commits",
-            "Drafted the first three response checks"
-          ]
-        };
-      }
+const demoIncidents = [
+  {
+    id: "BOB-1842",
+    title: "Hard brake near cyclist at 5th and Market",
+    location: "San Francisco",
+    category: "Planning issue",
+    raw_alert: "AV hard brake from 28mph to 4mph. Cyclist crossing from right. Late trajectory update, no collision. Operator reports uncomfortable decel.",
+    updated: "8 min ago",
+    notes: ["Reviewed disengagement clip. Cyclist was visible but prediction confidence dropped in crosswalk.", "Planning fallback selected full stop after late VRU trajectory update."],
+    triage: ruleTriage({
+      title: "Hard brake near cyclist at 5th and Market",
+      location: "San Francisco",
+      raw_alert: "AV hard brake from 28mph to 4mph. Cyclist crossing from right. Late trajectory update, no collision. Operator reports uncomfortable decel."
+    })
+  },
+  {
+    id: "BOB-1841",
+    title: "Wrong lane estimate after construction merge",
+    location: "Austin",
+    category: "Localization issue",
+    raw_alert: "Vehicle localized one lane left for 2.8s near construction barrels. No unsafe maneuver. HD map lane closure stale.",
+    updated: "22 min ago",
+    notes: ["Map overlay still shows pre-construction lane geometry.", "Localization recovered after visual lane markers returned."],
+    triage: ruleTriage({
+      title: "Wrong lane estimate after construction merge",
+      location: "Austin",
+      raw_alert: "Vehicle localized one lane left for 2.8s near construction barrels. No unsafe maneuver. HD map lane closure stale."
+    })
+  },
+  {
+    id: "BOB-1839",
+    title: "Missed cone until close range",
+    location: "Phoenix",
+    category: "Perception issue",
+    raw_alert: "Small construction cone detected at 11m, expected 35m. Vehicle nudged right within lane. Safe but uncomfortable.",
+    updated: "1 hr ago",
+    notes: ["Low sun glare in front camera.", "LiDAR point cluster was sparse but present."],
+    triage: ruleTriage({
+      title: "Missed cone until close range",
+      location: "Phoenix",
+      raw_alert: "Small construction cone detected at 11m, expected 35m. Vehicle nudged right within lane. Safe but uncomfortable."
+    })
+  }
+];
 
-      function inferService(raw) {
-        const match = raw.match(/([a-z][a-z0-9_-]+)_(service|api|worker|queue|webhook)/i);
-        if (match) return match[0].replace(/_/g, "-");
-        if (/checkout/i.test(raw)) return "checkout-service";
-        if (/cart/i.test(raw)) return "cart-service";
-        if (/payment|webhook/i.test(raw)) return "payments-webhooks";
-        return "unknown-service";
-      }
+function App() {
+  const [incidents, setIncidents] = useState(demoIncidents);
+  const [activeId, setActiveId] = useState(demoIncidents[0].id);
+  const [form, setForm] = useState({
+    title: "Hard brake near cyclist at 5th and Market",
+    location: "San Francisco",
+    raw_alert: demoIncidents[0].raw_alert
+  });
+  const [filters, setFilters] = useState({ severity: "All", category: "All", location: "All" });
+  const [note, setNote] = useState("");
+  const [chatInput, setChatInput] = useState("What happened?");
+  const [chat, setChat] = useState([
+    { by: "Triage Bob", text: "This incident looks like a VRU prediction/planning handoff. The cyclist was seen, but the path update came late enough that planning chose a hard stop." }
+  ]);
+  const [loading, setLoading] = useState(false);
+  const [activeSection, setActiveSection] = useState("Incidents");
+  const [theme, setTheme] = useState("dark");
+  const [updateStatus, setUpdateStatus] = useState("Triage Bob v1.0.0 is up to date.");
+  const [providerStatus, setProviderStatus] = useState({
+    ibm_bob_connection: "checking",
+    ibm_bob_message: "Checking IBM Bob connection...",
+    ibm_bob_mode: "triage-partner",
+  });
 
-      function App() {
-        const seeded = demoAlerts.map((item) => ({ ...item, brief: seededBrief(item), updated: "demo seed" }));
-        const [incidents, setIncidents] = useState(seeded);
-        const [activeId, setActiveId] = useState(seeded[0].id);
-        const [activeTab, setActiveTab] = useState("translator");
-        const [status, setStatus] = useState(null);
-        const [form, setForm] = useState({
-          title: "Checkout latency over 2s",
-          service: "checkout-service",
-          raw_alert: demoAlerts[0].raw_alert
-        });
-        const [result, setResult] = useState(seeded[0].brief);
-        const [note, setNote] = useState("");
-        const [selected, setSelected] = useState(() => new Set(seeded.map((item) => item.id)));
-        const [diff, setDiff] = useState("diff --git a/checkout-service/src/payments/authorize.ts b/checkout-service/src/payments/authorize.ts\n+ const retryCount = flags.fastProviderRetry ? 3 : 1;\n+ await provider.authorize(order, { timeoutMs: 1800, retryCount });");
-        const [loading, setLoading] = useState(false);
-        const [error, setError] = useState("");
-        const [copied, setCopied] = useState("");
-        const [log, setLog] = useState([
-          { title: "Bob re-briefed active incident", detail: "Loaded checkout latency context and prior notes.", time: "just now" },
-          { title: "Repo context scanned", detail: "Matched alert language to checkout-service files and deploy history.", time: "demo seed" }
-        ]);
+  const active = incidents.find((item) => item.id === activeId) || incidents[0];
+  const triage = active.triage;
 
-        const activeIncident = incidents.find((item) => item.id === activeId) || incidents[0];
+  const filtered = useMemo(() => {
+    return incidents.filter((item) => {
+      return (
+        (filters.severity === "All" || item.triage.severity === filters.severity) &&
+        (filters.category === "All" || item.category === filters.category) &&
+        (filters.location === "All" || item.location === filters.location)
+      );
+    });
+  }, [filters, incidents]);
 
-        useEffect(() => {
-          refresh();
-        }, []);
+  const handoff = useMemo(() => buildHandoff(incidents), [incidents]);
+  const jira = useMemo(() => buildJira(active), [active]);
 
-        useEffect(() => {
-          if (!activeIncident) return;
-          setResult(activeIncident.brief || blankBrief);
-          setForm({
-            title: activeIncident.title,
-            service: activeIncident.service,
-            raw_alert: activeIncident.raw_alert
-          });
-        }, [activeId]);
+  useEffect(() => {
+    let alive = true;
 
-        async function refresh() {
-          try {
-            const response = await fetch("/api/av-triage?limit=6");
-            const data = await response.json();
-            setStatus(data.status || null);
-          } catch (err) {
-            setStatus({ qwen_ready: false, supabase_ready: false, fallback_ready: true });
-          }
-        }
-
-        function pushLog(title, detail) {
-          setLog((current) => [{ title, detail, time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) }, ...current].slice(0, 12));
-        }
-
-        async function runTranslator(event) {
-          event.preventDefault();
-          setLoading(true);
-          setError("");
-          pushLog("Alert received", "Bob started translating raw monitor output into a response brief.");
-
-          try {
-            const response = await fetch("/api/av-triage", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify(form)
-            });
-            const data = await response.json();
-            if (!response.ok) throw new Error(data.error || "Bob could not triage that alert.");
-            const brief = data.triage || seededBrief(form);
-            const incident = {
-              id: activeIncident && activeIncident.title === form.title ? activeIncident.id : `inc-${Date.now()}`,
-              title: form.title || "Untitled incident",
-              service: brief.service || form.service || inferService(form.raw_alert),
-              severity: brief.severity,
-              raw_alert: form.raw_alert,
-              brief,
-              notes: activeIncident && activeIncident.title === form.title ? activeIncident.notes : [],
-              updated: "just now"
-            };
-            setResult(brief);
-            setIncidents((current) => [incident, ...current.filter((item) => item.id !== incident.id)].slice(0, 8));
-            setActiveId(incident.id);
-            setSelected((current) => new Set([...Array.from(current), incident.id]));
-            setStatus(data.status || status);
-            (brief.bob_actions || []).forEach((action) => pushLog(action, incident.title));
-          } catch (err) {
-            const brief = seededBrief(form);
-            setResult(brief);
-            pushLog("Fallback brief generated", "No provider response was available, so Bob used the local triage playbook.");
-            setError(err.message || String(err));
-          } finally {
-            setLoading(false);
-          }
-        }
-
-        function addNote() {
-          const clean = note.trim();
-          if (!clean || !activeIncident) return;
-          setIncidents((current) =>
-            current.map((item) =>
-              item.id === activeIncident.id
-                ? { ...item, notes: [...(item.notes || []), { by: "You", text: clean }], updated: "just now" }
-                : item
-            )
-          );
-          setNote("");
-          pushLog("Shift Brain updated", `Stored a new investigation note for ${activeIncident.title}.`);
-        }
-
-        function copyHandoff() {
-          const text = handoffMarkdown;
-          navigator.clipboard.writeText(text).then(() => setCopied("Copied handoff"));
-          pushLog("Handoff copied", "Bob generated a structured end-of-shift summary.");
-        }
-
-        function downloadHandoff() {
-          const blob = new Blob([handoffMarkdown], { type: "text/markdown" });
-          const url = URL.createObjectURL(blob);
-          const anchor = document.createElement("a");
-          anchor.href = url;
-          anchor.download = "bob-on-call-handoff.md";
-          anchor.click();
-          URL.revokeObjectURL(url);
-          pushLog("Handoff downloaded", "Markdown incident handoff exported.");
-        }
-
-        function toggleSelected(id) {
-          setSelected((current) => {
-            const next = new Set(Array.from(current));
-            if (next.has(id)) next.delete(id);
-            else next.add(id);
-            return next;
+    async function loadStatus() {
+      try {
+        const response = await fetch("/api/ai-status");
+        const data = await response.json();
+        if (alive && data.status) setProviderStatus(data.status);
+      } catch {
+        if (alive) {
+          setProviderStatus({
+            ibm_bob_connection: "degraded",
+            ibm_bob_message: "Status check failed. Using fallback mode.",
+            ibm_bob_mode: "triage-partner",
           });
         }
-
-        const handoffIncidents = useMemo(
-          () => incidents.filter((item) => selected.has(item.id)),
-          [incidents, selected]
-        );
-
-        const handoffMarkdown = useMemo(() => buildHandoff(handoffIncidents), [handoffIncidents]);
-        const radar = useMemo(() => runRadar(diff, incidents), [diff, incidents]);
-
-        return React.createElement(
-          "main",
-          { className: "app" },
-          React.createElement(Header, { status }),
-          React.createElement(
-            "section",
-            { className: "workspace" },
-            React.createElement(
-              "div",
-              { className: "main" },
-              React.createElement(
-                "div",
-                { className: "sandbox-head" },
-                React.createElement("div", null, React.createElement("span", { className: "eyebrow" }, "TRIAGE SANDBOX"), React.createElement("h2", null, "Incident Visualizer")),
-                React.createElement(Tabs, { activeTab, setActiveTab })
-              ),
-              React.createElement(Brief, { result }),
-              activeTab === "translator"
-                ? React.createElement(Translator, { form, setForm, runTranslator, loading, error })
-                : null,
-              activeTab === "brain"
-                ? React.createElement(ShiftBrain, { incident: activeIncident, note, setNote, addNote })
-                : null,
-              activeTab === "handoff"
-                ? React.createElement(Handoff, { incidents, selected, toggleSelected, markdown: handoffMarkdown, copyHandoff, downloadHandoff, copied })
-                : null,
-              activeTab === "radar"
-                ? React.createElement(RegressionRadar, { diff, setDiff, radar })
-                : null,
-              React.createElement(BriefDetails, { result })
-            ),
-            React.createElement(
-              "div",
-              { className: "side-stack" },
-              React.createElement(IncidentRail, { incidents, activeId, setActiveId }),
-              React.createElement(ActionRail, { log })
-            )
-          )
-        );
       }
+    }
 
-      function Header({ status }) {
-        const bobReady = Boolean(status && status.ibm_bob_ready);
-        const modelReady = Boolean(status && status.qwen_ready);
-        const dbReady = Boolean(status && status.supabase_ready);
-        return React.createElement(
-          "header",
-          { className: "topbar" },
-          React.createElement(
-            "div",
-            { className: "brand" },
-            React.createElement(
-              "div",
-              { className: "brand-mark", "aria-hidden": "true" },
-              React.createElement("img", { src: "/builder-bob-ui.png", alt: "" })
-            ),
-            React.createElement(
-              "div",
-              null,
-              React.createElement("h1", null, "Triage Bob"),
-              React.createElement("p", { className: "subhead" }, "On-call response console")
-            )
-          ),
-          React.createElement(
-            "div",
-            { className: "status-row" },
-            React.createElement("span", { className: "pill mode-pill online" }, React.createElement("span", { className: "status-dot online" }), "Performance Mode"),
-            React.createElement("span", { className: `pill ${bobReady ? "ready online" : "offline"}` }, React.createElement("span", { className: `status-dot ${bobReady ? "online" : "offline"}` }), bobReady ? "IBM Bob connected" : "IBM Bob project mode"),
-            React.createElement("span", { className: `pill ${modelReady ? "ready online" : "online"}` }, React.createElement("span", { className: "status-dot online" }), modelReady ? "Model backup ready" : "Local fallback ready"),
-            React.createElement("span", { className: "pill ready online" }, React.createElement("span", { className: "status-dot online" }), "Triage Partner mode"),
-            React.createElement("span", { className: `pill ${dbReady ? "ready online" : "offline"}` }, React.createElement("span", { className: `status-dot ${dbReady ? "online" : "offline"}` }), dbReady ? "Supabase ready" : "Local shift memory")
-          )
-        );
-      }
+    loadStatus();
+    const timer = setInterval(loadStatus, 30000);
+    return () => {
+      alive = false;
+      clearInterval(timer);
+    };
+  }, []);
 
-      function Tabs({ activeTab, setActiveTab }) {
-        const tabs = [
-          ["translator", "Alert Translator"],
-          ["brain", "Shift Brain"],
-          ["handoff", "Handoff Generator"],
-          ["radar", "Regression Radar"]
-        ];
-        return React.createElement(
-          "nav",
-          { className: "tabs" },
-          tabs.map(([id, label]) =>
-            React.createElement("button", { key: id, className: `tab ${activeTab === id ? "active" : ""}`, onClick: () => setActiveTab(id) }, label)
-          )
-        );
-      }
+  const bobConnectionLabel =
+    providerStatus.ibm_bob_connection === "connected"
+      ? "IBM Bob connected"
+      : providerStatus.ibm_bob_connection === "degraded"
+        ? "IBM Bob degraded"
+        : providerStatus.ibm_bob_connection === "not_configured"
+          ? "IBM Bob not configured"
+          : "Checking IBM Bob";
 
-      function IncidentRail({ incidents, activeId, setActiveId }) {
-        return React.createElement(
-          "aside",
-          { className: "panel" },
-          React.createElement(
-            "div",
-            { className: "panel-title" },
-            React.createElement("h2", null, "Open incidents"),
-            React.createElement("span", { className: "pill" }, `${incidents.length} active`)
-          ),
-          React.createElement(
-            "div",
-            { className: "incident-list" },
-            incidents.map((item) =>
-              React.createElement(
-                "button",
-                { className: `incident-card ${activeId === item.id ? "active" : ""}`, key: item.id, onClick: () => setActiveId(item.id) },
-                React.createElement("div", { className: `dot ${item.severity}` }),
-                React.createElement("div", null, React.createElement("strong", null, item.title), React.createElement("span", null, `${item.service} · ${item.updated}`)),
-                React.createElement("span", { className: `severity ${item.severity}` }, item.severity)
-              )
-            )
-          )
-        );
-      }
+  async function submitIncident(event) {
+    event.preventDefault();
+    setLoading(true);
+    let nextTriage = ruleTriage(form);
 
-      function Translator({ form, setForm, runTranslator, loading, error }) {
-        return React.createElement(
-          "form",
-          { className: "panel", onSubmit: runTranslator },
-          React.createElement(
-            "div",
-            { className: "panel-title" },
-            React.createElement("h2", null, "Alert Translator"),
-            React.createElement("span", { className: "pill" }, "60-second brief")
-          ),
-          React.createElement(
-            "div",
-            { className: "form-grid" },
-            React.createElement(
-              "div",
-              { className: "grid-two" },
-              React.createElement(Field, { label: "Incident title", value: form.title, onChange: (value) => setForm({ ...form, title: value }) }),
-              React.createElement(Field, { label: "Likely service", value: form.service, onChange: (value) => setForm({ ...form, service: value }) })
-            ),
-            React.createElement(
-              "div",
-              null,
-              React.createElement("label", null, "Raw monitoring alert"),
-              React.createElement("textarea", { value: form.raw_alert, onChange: (event) => setForm({ ...form, raw_alert: event.target.value }) })
-            ),
-            React.createElement(
-              "div",
-              { className: "button-row" },
-              React.createElement("button", { className: "primary", type: "submit", disabled: loading }, loading ? "Bob is triaging..." : "Ask Bob for first response"),
-              React.createElement(
-                "button",
-                {
-                  className: "secondary",
-                  type: "button",
-                  onClick: () => setForm({ title: demoAlerts[0].title, service: demoAlerts[0].service, raw_alert: demoAlerts[0].raw_alert })
-                },
-                "Load demo"
-              )
-            ),
-            error ? React.createElement("div", { className: "error" }, error) : null
-          )
-        );
-      }
+    try {
+      const response = await fetch("/api/av-triage", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form)
+      });
+      const data = await response.json();
+      if (data.triage) nextTriage = normalizeClientTriage(data.triage, form);
+    } catch {
+      nextTriage = ruleTriage(form);
+    }
 
-      function Field({ label, value, onChange }) {
-        return React.createElement(
-          "div",
-          null,
-          React.createElement("label", null, label),
-          React.createElement("input", { value, onChange: (event) => onChange(event.target.value) })
-        );
-      }
+    const incident = {
+      id: `BOB-${Math.floor(1900 + Math.random() * 8000)}`,
+      title: form.title || "Untitled incident",
+      location: form.location || "Unknown",
+      category: nextTriage.issue_type,
+      raw_alert: form.raw_alert,
+      updated: "just now",
+      notes: [],
+      triage: nextTriage
+    };
+    setIncidents((current) => [incident, ...current]);
+    setActiveId(incident.id);
+    setChat([{ by: "Triage Bob", text: nextTriage.summary }]);
+    setLoading(false);
+  }
 
-      function Brief({ result }) {
-        const confidence = Math.round((result.confidence || 0) * 100);
-        return React.createElement(
-          "article",
-          { className: "brief" },
-          React.createElement(
-            "div",
-            { className: "brief-status" },
-            React.createElement("span", { className: `severity ${result.severity}` }, result.severity)
-          ),
-          React.createElement(
-            "div",
-            { className: "brief-head" },
-            React.createElement(
-              "div",
-              { className: "signal" },
-              React.createElement(
-                "div",
-                { className: "av-vehicle", "aria-label": "3D autonomous vehicle visual" },
-                React.createElement("div", { className: "road-haze" }),
-                React.createElement("div", { className: "road-grid" }),
-                React.createElement("div", { className: "crosswalk crosswalk-near" }),
-                React.createElement("div", { className: "crosswalk crosswalk-far" }),
-                React.createElement("div", { className: "lane lane-left" }),
-                React.createElement("div", { className: "lane lane-center" }),
-                React.createElement("div", { className: "lane lane-right" }),
-                React.createElement("div", { className: "sensor-ray ray-cyan-left" }),
-                React.createElement("div", { className: "sensor-ray ray-cyan-right" }),
-                React.createElement("div", { className: "sensor-ray ray-green-left" }),
-                React.createElement("div", { className: "sensor-ray ray-green-right" }),
-                React.createElement("div", { className: "sensor-ray ray-yellow-left" }),
-                React.createElement("div", { className: "sensor-ray ray-pink-right" }),
-                React.createElement("div", { className: "detected detected-car detected-car-left" }),
-                React.createElement("div", { className: "detected detected-car detected-car-center" }),
-                React.createElement("div", { className: "detected detected-car detected-car-right" }),
-                React.createElement("div", { className: "detected detected-bus" }),
-                React.createElement("div", { className: "detected-person person-left" }),
-                React.createElement("div", { className: "detected-person person-right" }),
-                React.createElement("div", { className: "traffic-post post-left" }),
-                React.createElement("div", { className: "traffic-post post-right" }),
-                React.createElement("div", { className: "ego-car" }),
-                React.createElement("div", { className: "av-confidence" }, React.createElement("strong", null, confidence), React.createElement("span", null, "confidence"))
-              )
-            ),
-            React.createElement(
-              "div",
-              { className: "brief-copy" },
-              React.createElement(
-                "div",
-                { className: "brief-narrative" },
-                React.createElement("h2", null, result.plain_english),
-                React.createElement("p", null, result.handoff_note)
-              )
-            )
-          )
-        );
-      }
+  function addNote() {
+    const clean = note.trim();
+    if (!clean) return;
+    setIncidents((current) => current.map((item) => item.id === active.id ? { ...item, notes: [...item.notes, clean], updated: "just now" } : item));
+    setNote("");
+  }
 
-      function Metric({ label, value }) {
-        return React.createElement("div", { className: "metric" }, React.createElement("span", null, label), React.createElement("strong", null, value));
-      }
+  function askBob() {
+    const clean = chatInput.trim();
+    if (!clean) return;
+    const answer = `${active.title}: ${triage.summary} Current lead is ${triage.issue_type.toLowerCase()} with ${triage.tags.join(", ")} tags. Next best check: ${triage.first_response_steps[0]}`;
+    setChat((current) => [...current, { by: "You", text: clean }, { by: "Triage Bob", text: answer }]);
+    setChatInput("");
+  }
 
-      function BriefDetails({ result }) {
-        return React.createElement(
-          "section",
-          { className: "content-grid" },
-          React.createElement(ListPanel, { title: "First 3 checks", items: result.first_response_steps, ordered: true }),
-          React.createElement(ListPanel, { title: "Risk watch", items: result.risks }),
-          React.createElement(ListPanel, { title: "Likely files", items: result.likely_files }),
-          React.createElement(
-            "div",
-            { className: "list-panel" },
-            React.createElement("h3", null, "Last relevant commits"),
-            React.createElement(
-              "div",
-              { className: "commits" },
-              result.commits.length
-                ? result.commits.map((commit) =>
-                    React.createElement(
-                      "div",
-                      { className: "commit", key: commit.hash },
-                      React.createElement("strong", null, `${commit.hash} · ${commit.message}`),
-                      React.createElement("span", null, commit.author)
-                    )
-                  )
-                : React.createElement("p", { className: "subhead" }, "No commits surfaced yet.")
-            )
-          )
-        );
-      }
+  return (
+    <main className="app" data-theme={theme}>
+      <aside className="sidebar">
+        <div className="sidebar-brand">
+          <div className="brand-mark"><img src="/triage-bob-logo.png" alt="Triage Bob logo" /></div>
+          <div>
+            <strong>Triage Bob</strong>
+            <span>IBM Bob partner</span>
+          </div>
+        </div>
 
-      function ListPanel({ title, items, ordered }) {
-        const Tag = ordered ? "ol" : "ul";
-        return React.createElement(
-          "div",
-          { className: "list-panel" },
-          React.createElement("h3", null, title),
-          items && items.length
-            ? React.createElement(Tag, null, items.map((item, index) => React.createElement("li", { key: `${title}-${index}` }, item)))
-            : React.createElement("p", { className: "subhead" }, "Bob has not added anything here yet.")
-        );
-      }
+        <div className="bob-status">
+          <span className={`online-dot ${providerStatus.ibm_bob_connection || "checking"}`} />
+          <div>
+            <strong>{bobConnectionLabel}</strong>
+            <span>{providerStatus.ibm_bob_message}</span>
+          </div>
+        </div>
 
-      function ShiftBrain({ incident, note, setNote, addNote }) {
-        const notes = incident.notes || [];
-        return React.createElement(
-          "section",
-          { className: "brain" },
-          React.createElement(
-            "div",
-            { className: "panel-title" },
-            React.createElement("h2", null, "Shift Brain"),
-            React.createElement("span", { className: "pill" }, "Instant re-brief")
-          ),
-          React.createElement("p", { className: "body-copy" }, incident.brief.handoff_note),
-          React.createElement(
-            "div",
-            { className: "notes-grid", style: { marginTop: "15px" } },
-            React.createElement(
-              "div",
-              null,
-              notes.map((item, index) =>
-                React.createElement("div", { className: "note-card", key: `${item.by}-${index}` }, React.createElement("strong", null, item.by), React.createElement("p", null, item.text))
-              )
-            ),
-            React.createElement(
-              "div",
-              null,
-              React.createElement("label", null, "Add investigation note"),
-              React.createElement("textarea", { value: note, onChange: (event) => setNote(event.target.value), placeholder: "What did you check? What changed?" }),
-              React.createElement("button", { className: "primary", type: "button", style: { width: "100%", marginTop: "9px" }, onClick: addNote }, "Save note")
-            )
-          )
-        );
-      }
+        <nav className="side-nav" aria-label="Main navigation">
+          {["Incidents", "Services", "Dashboards", "Settings"].map((item) => (
+            <button className={activeSection === item ? "active" : ""} type="button" key={item} onClick={() => setActiveSection(item)}>
+              <span>{item === "Incidents" ? "●" : item === "Services" ? "◆" : item === "Dashboards" ? "▦" : "⚙"}</span>{item}
+            </button>
+          ))}
+        </nav>
 
-      function Handoff({ incidents, selected, toggleSelected, markdown, copyHandoff, downloadHandoff, copied }) {
-        return React.createElement(
-          "section",
-          { className: "handoff" },
-          React.createElement(
-            "div",
-            { className: "panel-title" },
-            React.createElement("h2", null, "Handoff Generator"),
-            React.createElement("span", { className: "pill" }, "Markdown output")
-          ),
-          React.createElement(
-            "div",
-            { className: "handoff-layout" },
-            React.createElement(
-              "div",
-              null,
-              React.createElement(
-                "div",
-                { className: "check-list" },
-                incidents.map((item) =>
-                  React.createElement(
-                    "label",
-                    { className: "check-row", key: item.id },
-                    React.createElement("input", { type: "checkbox", checked: selected.has(item.id), onChange: () => toggleSelected(item.id) }),
-                    React.createElement("span", null, `${item.title} · ${item.severity}`)
-                  )
-                )
-              ),
-              React.createElement(
-                "div",
-                { className: "button-row", style: { marginTop: "14px" } },
-                React.createElement("button", { className: "primary", type: "button", onClick: copyHandoff }, copied || "Copy"),
-                React.createElement("button", { className: "secondary", type: "button", onClick: downloadHandoff }, "Download")
-              )
-            ),
-            React.createElement("textarea", { className: "markdown", value: markdown, readOnly: true })
-          )
-        );
-      }
+        <div className="sidebar-footer">
+          <span>Rules + LLM fallback</span>
+          <span>Local shift brain</span>
+        </div>
+      </aside>
 
-      function RegressionRadar({ diff, setDiff, radar }) {
-        return React.createElement(
-          "section",
-          { className: "radar" },
-          React.createElement(
-            "div",
-            { className: "panel-title" },
-            React.createElement("h2", null, "Regression Radar"),
-            React.createElement("span", { className: `severity ${radar.severity}` }, radar.severity)
-          ),
-          React.createElement("label", null, "Paste PR diff"),
-          React.createElement("textarea", { value: diff, onChange: (event) => setDiff(event.target.value), style: { minHeight: "170px" } }),
-          React.createElement("div", { className: "metric-strip" },
-            React.createElement(Metric, { label: "Matched incident area", value: radar.area }),
-            React.createElement(Metric, { label: "Risk", value: radar.reason }),
-            React.createElement(Metric, { label: "Suggested guardrail", value: radar.guardrail })
-          )
-        );
-      }
+      <div className="main-shell">
+        <header className="topbar">
+          <div>
+            <h1>Triage Bob</h1>
+            <p>IBM Bob-powered incident partner for alert translation, shift memory, dashboard tracking, and Jira-style reporting.</p>
+          </div>
+          <div className="status">
+            <span>{bobConnectionLabel}</span>
+            <span>{providerStatus.ibm_bob_mode}</span>
+            <span>{incidents.length} open incidents</span>
+            <span>{active.triage.severity} active severity</span>
+          </div>
+        </header>
 
-      function ActionRail({ log }) {
-        return React.createElement(
-          "aside",
-          { className: "rail" },
-          React.createElement(
-            "div",
-            { className: "mode-card" },
-            React.createElement(
-              "div",
-              { className: "panel-title" },
-              React.createElement("h3", null, "Custom Bob Mode"),
-              React.createElement("span", { className: "pill ready" }, "visible")
-            ),
-            React.createElement("code", null, bobMode)
-          ),
-          React.createElement(
-            "div",
-            null,
-            React.createElement(
-              "div",
-              { className: "panel-title" },
-              React.createElement("h3", null, "Bob actions"),
-              React.createElement("span", { className: "pill" }, "live log")
-            ),
-            React.createElement(
-              "div",
-              { className: "log" },
-              log.map((item, index) =>
-                React.createElement("div", { className: "log-row", key: `${item.title}-${index}` }, React.createElement("strong", null, item.title), React.createElement("span", null, `${item.detail} · ${item.time}`))
-              )
-            )
-          )
-        );
-      }
+        {activeSection === "Incidents" ? <section className="workspace incidents-workspace">
+          <section className="overview-strip" aria-label="Incident overview">
+            <MetricCard label="Open incidents" value={incidents.length} delta="+3 this shift" tone="blue" />
+            <MetricCard label="S0/S1 priority" value={incidents.filter((item) => ["S0", "S1"].includes(item.triage.severity)).length} delta="active queue" tone="amber" />
+            <MetricCard label="Avg confidence" value={`${Math.round(incidents.reduce((sum, item) => sum + item.triage.confidence, 0) / incidents.length)}%`} delta="rules + LLM" tone="green" />
+            <MetricCard label="Current owner" value={triage.issue_type.split(" ")[0]} delta={active.location} tone="cyan" />
+          </section>
 
-      function buildHandoff(incidents) {
-        if (!incidents.length) return "# Bob on Call Handoff\n\nNo incidents selected.";
-        const lines = [
-          "# Bob on Call Handoff",
-          "",
-          `Generated: ${new Date().toLocaleString()}`,
-          "",
-          "## Shift Summary",
-          `${incidents.length} open incident${incidents.length === 1 ? "" : "s"} selected for handoff. Critical customer paths should be reviewed first.`,
-          ""
-        ];
-        incidents.forEach((incident) => {
-          const brief = incident.brief || blankBrief;
-          lines.push(`## ${incident.title}`);
-          lines.push(`Severity: ${brief.severity}`);
-          lines.push(`Service: ${brief.service}`);
-          lines.push(`Plain English: ${brief.plain_english}`);
-          lines.push(`Affected Area: ${brief.affected_area}`);
-          lines.push("");
-          lines.push("First checks:");
-          (brief.first_response_steps || []).forEach((step, index) => lines.push(`${index + 1}. ${step}`));
-          lines.push("");
-          lines.push("Notes:");
-          (incident.notes || []).forEach((note) => lines.push(`- ${note.by}: ${note.text}`));
-          lines.push("");
-        });
-        return lines.join("\n");
-      }
+          <form className="panel incident-form" onSubmit={submitIncident}>
+            <PanelTitle title="Incident input" meta="paste alert" />
+            <label>Incident title<input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} /></label>
+            <label>Location<input value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} /></label>
+            <label>Raw monitoring alert<textarea value={form.raw_alert} onChange={(e) => setForm({ ...form, raw_alert: e.target.value })} /></label>
+            <button className="primary" disabled={loading}>{loading ? "Bob is triaging..." : "Generate triage"}</button>
+          </form>
 
-      function runRadar(diff, incidents) {
-        const lower = diff.toLowerCase();
-        const checkoutMatch = lower.includes("checkout") || lower.includes("authorize") || lower.includes("retry");
-        const cartMatch = lower.includes("cart") || lower.includes("redis") || lower.includes("cache");
-        if (checkoutMatch) {
-          return {
-            severity: "High",
-            area: "checkout-service payments path",
-            reason: "Diff touches retry or authorization code connected to the current checkout latency incident.",
-            guardrail: "Require latency canary and provider-call count check before merge."
-          };
-        }
-        if (cartMatch) {
-          return {
-            severity: "Medium",
-            area: "cart-service cache layer",
-            reason: "Diff overlaps an open incident involving Redis timeouts and 5xx errors.",
-            guardrail: "Run cache timeout regression test and compare pool saturation."
-          };
-        }
-        return {
-          severity: incidents.some((item) => item.severity === "Critical") ? "Low" : "Medium",
-          area: "No direct overlap found",
-          reason: "Bob did not match the diff against active incident files.",
-          guardrail: "Run normal deploy checks and monitor the active incident dashboard."
-        };
-      }
+        <section className="panel triage">
+          <PanelTitle title="AI triage result" meta={triage.confidence + "% confidence"} />
+          <div className={`score ${triage.severity}`}>
+            <strong>{triage.severity}</strong>
+            <span>{severityMeta[triage.severity]?.label}</span>
+          </div>
+          <h2>{triage.summary}</h2>
+          <div className="tags">{triage.tags.map((tag) => <span key={tag}>{tag}</span>)}</div>
+          <div className="split">
+            <List title="First-response steps" items={triage.first_response_steps} ordered />
+            <List title="Likely code area" items={[triage.affected_area, ...triage.likely_files]} />
+          </div>
+          <div className="commits">
+            {triage.commits.map((commit) => <div key={commit.hash}><b>{commit.hash}</b><span>{commit.message}</span></div>)}
+          </div>
+        </section>
+
+        <section className="panel dashboard">
+          <PanelTitle title="Incident dashboard" meta={`${filtered.length} shown`} />
+          <div className="filters">
+            <Select label="Severity" value={filters.severity} values={["All", "S0", "S1", "S2", "S3"]} onChange={(severity) => setFilters({ ...filters, severity })} />
+            <Select label="Category" value={filters.category} values={["All", ...issueTypes]} onChange={(category) => setFilters({ ...filters, category })} />
+            <Select label="Location" value={filters.location} values={["All", ...new Set(incidents.map((item) => item.location))]} onChange={(location) => setFilters({ ...filters, location })} />
+          </div>
+          <div className="incident-list">
+            {filtered.map((item) => (
+              <button className={item.id === active.id ? "incident active" : "incident"} key={item.id} onClick={() => setActiveId(item.id)}>
+                <span className={`mini ${item.triage.severity}`}>{item.triage.severity}</span>
+                <b>{item.title}</b>
+                <small>{item.category} · {item.location} · {item.updated}</small>
+              </button>
+            ))}
+          </div>
+        </section>
+
+        <section className="panel report">
+          <PanelTitle title="Jira-style report" meta={active.id} />
+          <textarea readOnly value={jira} />
+        </section>
+
+        <section className="panel brain">
+          <PanelTitle title="Shift Brain" meta="re-brief" />
+          <p>{triage.handoff_note}</p>
+          <div className="notes">
+            {active.notes.map((item, index) => <div key={index}>{item}</div>)}
+          </div>
+          <label>Add investigation note<textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="What did you check? What changed?" /></label>
+          <button className="secondary" type="button" onClick={addNote}>Save note</button>
+        </section>
+
+        <section className="panel chat">
+          <PanelTitle title="Ask the bot what happened" meta="chat" />
+          <div className="messages">{chat.map((item, index) => <p key={index} className={item.by.toLowerCase()}><b>{item.by}</b>{item.text}</p>)}</div>
+          <div className="chat-row">
+            <input value={chatInput} onChange={(e) => setChatInput(e.target.value)} />
+            <button className="primary" type="button" onClick={askBob}>Ask</button>
+          </div>
+        </section>
+
+          <section className="panel handoff">
+            <PanelTitle title="Handoff Generator" meta="end of shift" />
+            <textarea readOnly value={handoff} />
+          </section>
+        </section> : null}
+
+        {activeSection === "Services" ? <ServicesView incidents={incidents} /> : null}
+        {activeSection === "Dashboards" ? <DashboardView /> : null}
+        {activeSection === "Settings" ? <SettingsView theme={theme} setTheme={setTheme} updateStatus={updateStatus} setUpdateStatus={setUpdateStatus} /> : null}
+      </div>
+    </main>
+  );
+}
+
+function PanelTitle({ title, meta }) {
+  return <div className="panel-title"><h2>{title}</h2><span>{meta}</span></div>;
+}
+
+function MetricCard({ label, value, delta, tone }) {
+  return <article className={`mini-metric ${tone}`}><span>{label}</span><strong>{value}</strong><small>{delta}</small></article>;
+}
+
+function Select({ label, value, values, onChange }) {
+  return <label>{label}<select value={value} onChange={(e) => onChange(e.target.value)}>{values.map((item) => <option key={item}>{item}</option>)}</select></label>;
+}
+
+function List({ title, items, ordered }) {
+  const Tag = ordered ? "ol" : "ul";
+  return <div><h3>{title}</h3><Tag>{items.map((item, index) => <li key={index}>{item}</li>)}</Tag></div>;
+}
+
+function ServicesView({ incidents }) {
+  const services = issueTypes.map((name, index) => ({
+    name,
+    owner: ["Perception", "Prediction", "Planning", "Controls", "Localization", "Maps", "Sensors", "Operations"][index],
+    health: index < 2 ? "Watch" : index < 5 ? "Stable" : "Good",
+    open: incidents.filter((item) => item.category === name).length + (index % 3)
+  }));
+
+  return (
+    <section className="service-grid">
+      {services.map((service) => (
+        <article className="panel service-card" key={service.name}>
+          <PanelTitle title={service.name} meta={service.health} />
+          <strong>{service.open}</strong>
+          <span>open linked tickets</span>
+          <p>Owner: {service.owner} team</p>
+        </article>
+      ))}
+    </section>
+  );
+}
+
+function DashboardView() {
+  const totals = [
+    ["All tickets", "37"],
+    ["New tickets", "8"],
+    ["Recurring", "11"],
+    ["Resolved", "18"]
+  ];
+
+  return (
+    <section className="dashboard-page">
+      <div className="metric-row">
+        {totals.map(([label, value]) => <div className="panel metric-card" key={label}><span>{label}</span><strong>{value}</strong></div>)}
+      </div>
+      <section className="panel ticket-table">
+        <PanelTitle title="Ticket dashboard" meta="fleet overview" />
+        <div className="table-head"><span>Ticket</span><span>Location</span><span>Vehicle</span><span>Status</span><span>Repeat</span><span>Severity</span></div>
+        {fleetDashboard.tickets.map((ticket) => (
+          <div className="table-row" key={ticket.id}>
+            <span><b>{ticket.id}</b>{ticket.title}</span>
+            <span>{ticket.location}</span>
+            <span>{ticket.vehicle}</span>
+            <span>{ticket.status}</span>
+            <span>{ticket.repeat}</span>
+            <span className={`mini ${ticket.severity}`}>{ticket.severity}</span>
+          </div>
+        ))}
+      </section>
+      <section className="panel vehicle-panel">
+        <PanelTitle title="Vehicles affected" meta={`${fleetDashboard.vehicles.length} vehicles`} />
+        <div className="vehicle-list">{fleetDashboard.vehicles.map((vehicle) => <span key={vehicle}>{vehicle}</span>)}</div>
+      </section>
+      <section className="panel location-panel">
+        <PanelTitle title="Tickets by location" meta="last 24h" />
+        {fleetDashboard.locations.map((loc) => <div className="location-row" key={loc.name}><span>{loc.name}</span><strong>{loc.count}</strong></div>)}
+      </section>
+    </section>
+  );
+}
+
+function SettingsView({ theme, setTheme, updateStatus, setUpdateStatus }) {
+  return (
+    <section className="settings-page">
+      <section className="panel settings-panel">
+        <PanelTitle title="Settings" meta="app preferences" />
+        <div className="setting-row">
+          <div><strong>Theme</strong><span>Choose light or dark mode.</span></div>
+          <div className="segmented">
+            <button className={theme === "dark" ? "active" : ""} type="button" onClick={() => setTheme("dark")}>Dark</button>
+            <button className={theme === "light" ? "active" : ""} type="button" onClick={() => setTheme("light")}>Light</button>
+          </div>
+        </div>
+        <div className="setting-row">
+          <div><strong>Version</strong><span>Triage Bob v1.0.0</span></div>
+          <button className="secondary compact" type="button" onClick={() => setUpdateStatus("Triage Bob is up to date.")}>Check for updates</button>
+        </div>
+        <div className="update-box">{updateStatus}</div>
+      </section>
+    </section>
+  );
+}
+
+function ruleTriage(input) {
+  const raw = `${input.title || ""} ${input.raw_alert || ""}`.toLowerCase();
+  const tags = [];
+  if (/pedestrian|cyclist|bike|vru|crosswalk/.test(raw)) tags.push("VRU");
+  if (/brak|accelerat|steer|swerve|jerk/.test(raw)) tags.push("controls/planning");
+  if (/miss|late detect|detected late|object|cone/.test(raw)) tags.push("perception");
+  if (/wrong lane|position|localiz|map|hd map|lane closure/.test(raw)) tags.push("localization/map");
+  if (/sensor|camera|lidar|radar|occlu|glare/.test(raw)) tags.push("sensor");
+
+  const unsafe = /(collision|injur|unsafe|contact)/.test(raw) && !/(no collision|without collision|no injury|no injuries|no contact)/.test(raw);
+  const severity = unsafe ? "S0" : /near miss|hard brake|vru|pedestrian|cyclist/.test(raw) ? "S1" : /uncomfortable|safe|jerk|swerve|nudge/.test(raw) ? "S2" : "S3";
+  const issue_type = /miss|detect|object|cone|pedestrian/.test(raw) ? "Perception issue" : /predict|trajectory|vru/.test(raw) ? "Prediction issue" : /brak|steer|maneuver|path|fallback/.test(raw) ? "Planning issue" : /control|decel|accel/.test(raw) ? "Controls issue" : /localiz|position/.test(raw) ? "Localization issue" : /map|lane closure/.test(raw) ? "Map issue" : /sensor|camera|lidar|radar/.test(raw) ? "Sensor issue" : "Operator / scenario issue";
+  const area = issue_type.replace(" issue", "").toLowerCase().replace(" / scenario", "");
+
+  return {
+    severity,
+    issue_type,
+    confidence: severity === "S0" ? 94 : severity === "S1" ? 88 : severity === "S2" ? 78 : 66,
+    summary: summarize(severity, issue_type, input),
+    tags: tags.length ? tags : ["needs review"],
+    affected_area: `${area}-stack/${area === "map" ? "hd-map-diff" : "incident-review"}`,
+    likely_files: [`av/${area}/triage_rules.ts`, `av/${area}/debug_playbook.md`, "ops/jira_templates/incident_report.md"],
+    commits: [
+      { hash: "a81c42e", message: `Tune ${area} confidence thresholds` },
+      { hash: "7df30b9", message: "Add AV incident replay annotations" },
+      { hash: "3c19aa4", message: "Update Jira handoff template fields" }
+    ],
+    first_response_steps: [
+      "Open the replay window and mark the first timestamp where behavior diverges from expectation.",
+      "Check perception, prediction, planning, controls, localization, map, and sensor signals against the event tags.",
+      "Create a Jira report with severity, affected stack, evidence links, and the next owner."
+    ],
+    handoff_note: `Keep focus on ${issue_type.toLowerCase()} evidence, severity ${severity}, scene context, and whether the behavior was unsafe or only uncomfortable.`
+  };
+}
+
+function summarize(severity, issueType, input) {
+  const location = input.location ? ` in ${input.location}` : "";
+  return `${severity} ${issueType.toLowerCase()}${location}. Bob flagged the event from the alert text and prepared first-response checks for the on-call triage engineer.`;
+}
+
+function normalizeClientTriage(triage, input) {
+  const fallback = ruleTriage(input);
+  return {
+    ...fallback,
+    ...triage,
+    severity: ["S0", "S1", "S2", "S3"].includes(triage.severity) ? triage.severity : fallback.severity,
+    issue_type: issueTypes.includes(triage.issue_type) ? triage.issue_type : fallback.issue_type,
+    confidence: Math.round(Number(triage.confidence || fallback.confidence)),
+    tags: Array.isArray(triage.tags) ? triage.tags : fallback.tags
+  };
+}
+
+function buildJira(incident) {
+  const t = incident.triage;
+  return [
+    `Project: AVOPS`,
+    `Issue Type: Incident`,
+    `Summary: [${t.severity}] ${incident.title}`,
+    `Location: ${incident.location}`,
+    `Severity: ${t.severity} - ${severityMeta[t.severity]?.label}`,
+    `Category: ${t.issue_type}`,
+    `Tags: ${t.tags.join(", ")}`,
+    "",
+    "Description:",
+    t.summary,
+    "",
+    "Acceptance / next checks:",
+    ...t.first_response_steps.map((step) => `- ${step}`),
+    "",
+    "Raw alert:",
+    incident.raw_alert
+  ].join("\n");
+}
+
+function buildHandoff(incidents) {
+  return [
+    "# Triage Bob Handoff",
+    `Generated: ${new Date().toLocaleString()}`,
+    "",
+    ...incidents.flatMap((incident) => [
+      `## ${incident.id} - ${incident.title}`,
+      `Severity: ${incident.triage.severity}`,
+      `Category: ${incident.triage.issue_type}`,
+      `Location: ${incident.location}`,
+      `Current read: ${incident.triage.summary}`,
+      `Notes: ${incident.notes.length ? incident.notes.join(" | ") : "No notes yet."}`,
+      ""
+    ])
+  ].join("\n");
+}
 
 export default App;
