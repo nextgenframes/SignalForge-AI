@@ -2,9 +2,12 @@ node_modules/
 .npm-cache/
 dist/
 .env
+.env.local
+.vercel/
 .DS_Store
 out/
 vendor/mapcn/
 /private/tmp/
 *.log
 coverage/
+.vercel
