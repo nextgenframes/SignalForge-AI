@@ -7,7 +7,7 @@ Built for "center console" workflow: triage incidents, monitor fleet health, man
 ## Highlights
 
 - Sidebar navigation with pages for: Command Board, Incidents, Fleet Health, Assets, Troubleshooting, Tickets Map, Weather, Finance, Milestones, Settings
-- Demo login with "Enter Demo" bypass
+- Supabase auth login/register/password-change/logout plus "Enter Demo" bypass
 - Command Board dashboard layout inspired by mockup (dark UI, dense panels)
 - Ticket Monitoring Map upgraded to interactive MapLibre map (mapcn-style integration)
 - Assets: add/edit/remove demo vehicles with confirm on delete
@@ -21,7 +21,7 @@ Built for "center console" workflow: triage incidents, monitor fleet health, man
 
 - React + Vite
 - Plain CSS (custom dashboard styling)
-- Optional Supabase REST (if env vars set)
+- Supabase Auth + Postgres
 - MapLibre GL (interactive maps)
 
 ## Quick Start
@@ -41,9 +41,10 @@ Open:
 
 Sign-in screen includes:
 
-- Email/password fields (demo only)
+- Email/password fields wired for Supabase Auth
 - "Enter Demo" button (bypass auth)
-- "Create an account" link (demo register modal)
+- "Create an account" link (Supabase signup)
+- "Forgot password?" trigger (Supabase reset email)
 
 ## Map / Locations
 
@@ -62,11 +63,14 @@ Filters (dropdowns):
 - Severity: All / S1 / S2 / S3
 - Type: All Types / Planning / Sensors / Perception / Operations / Maps / Compute
 
-## Supabase (Optional)
+## Supabase
 
 App works fully with simulated data by default.
 
-If you want to hydrate from Supabase REST endpoints, set:
+To enable full backend, do both:
+
+1. Run `supabase-schema.sql` in Supabase SQL Editor
+2. Add env vars:
 
 ```bash
 VITE_SUPABASE_URL=...
@@ -78,7 +82,26 @@ Tables expected (see `supabase-schema.sql`):
 - `center_console_locations`
 - `center_console_assets`
 - `center_console_milestones`
+- `center_console_incidents`
+- `center_console_tickets`
+- `center_console_troubleshooting_logs`
 - `center_console_feedback`
+
+Auth-backed features:
+
+- Email/password sign in
+- Sign up
+- Password reset email
+- Password change while signed in
+- Logout
+
+Persisted app actions:
+
+- Asset add/edit/remove
+- Incident status updates
+- Ticket map reads
+- Troubleshooting connect/toggle/log requests
+- Feedback submissions
 
 ## Scripts
 
@@ -105,6 +128,7 @@ Environment variables (optional):
 ## Repo Structure
 
 - `src/App.jsx` main app (pages, routing, demo data)
+- `src/supabaseClient.js` Supabase browser client
 - `src/styles.css` dashboard styling
 - `src/MapcnMap.jsx` MapLibre wrapper used by Ticket Monitoring Map panels
 - `public/operations-map-photo.png` sign-in background map image

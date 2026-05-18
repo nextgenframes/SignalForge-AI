@@ -140,12 +140,13 @@ comment on table public.center_console_feedback is
 insert into public.center_console_locations
   (id, city, state, issue_count, severity, daily_cost, map_x, map_y)
 values
-  ('00000000-0000-4000-8000-000000000101', 'San Francisco', 'CA', 42, 'Critical', 18420, 19, 39),
-  ('00000000-0000-4000-8000-000000000102', 'Los Angeles', 'CA', 33, 'High', 14280, 33, 70),
-  ('00000000-0000-4000-8000-000000000103', 'Phoenix', 'AZ', 28, 'Medium', 12660, 42, 57),
-  ('00000000-0000-4000-8000-000000000104', 'Austin', 'TX', 24, 'Medium', 11240, 61, 68),
-  ('00000000-0000-4000-8000-000000000105', 'Pittsburgh', 'PA', 17, 'Low', 6640, 76, 34),
-  ('00000000-0000-4000-8000-000000000106', 'Miami', 'FL', 13, 'Low', 5420, 86, 76)
+  ('00000000-0000-4000-8000-000000000101', 'San Francisco', 'CA', 42, 'Critical', 18420, 16, 52),
+  ('00000000-0000-4000-8000-000000000102', 'Los Angeles', 'CA', 33, 'High', 14280, 20, 66),
+  ('00000000-0000-4000-8000-000000000103', 'Seattle', 'WA', 21, 'Medium', 9820, 18, 22),
+  ('00000000-0000-4000-8000-000000000104', 'Denver', 'CO', 18, 'Low', 7640, 43, 42),
+  ('00000000-0000-4000-8000-000000000105', 'Austin', 'TX', 24, 'Medium', 11240, 51, 66),
+  ('00000000-0000-4000-8000-000000000106', 'Miami', 'FL', 13, 'Low', 5420, 72, 78),
+  ('00000000-0000-4000-8000-000000000107', 'New York', 'NY', 29, 'High', 13310, 82, 36)
 on conflict (id) do update set
   issue_count = excluded.issue_count,
   severity = excluded.severity,
@@ -159,7 +160,7 @@ values
   ('AV-204', '00000000-0000-4000-8000-000000000101', 87, 118420, 'Investigate'),
   ('AV-118', '00000000-0000-4000-8000-000000000102', 93, 91480, 'On route'),
   ('AV-077', '00000000-0000-4000-8000-000000000103', 91, 96510, 'Ready'),
-  ('AV-331', '00000000-0000-4000-8000-000000000104', 79, 73680, 'Service bay'),
+  ('AV-331', '00000000-0000-4000-8000-000000000105', 79, 73680, 'Service bay'),
   ('AV-419', '00000000-0000-4000-8000-000000000106', 96, 62410, 'Ready')
 on conflict (asset_tag) do update set
   location_id = excluded.location_id,
@@ -178,3 +179,197 @@ on conflict (id) do update set
   milestone_type = excluded.milestone_type,
   due_on = excluded.due_on,
   progress = excluded.progress;
+
+create table if not exists public.center_console_incidents (
+  id uuid primary key default gen_random_uuid(),
+  ticket_id text not null unique,
+  title text not null,
+  city text not null,
+  owner text not null,
+  severity text not null check (severity in ('S1', 'S2', 'S3')),
+  status text not null,
+  age_minutes integer not null default 0 check (age_minutes >= 0),
+  ai_summary text,
+  recommended_actions jsonb not null default '[]'::jsonb,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists public.center_console_tickets (
+  id uuid primary key default gen_random_uuid(),
+  ticket_id text not null unique,
+  city text not null,
+  severity text not null check (severity in ('S1', 'S2', 'S3')),
+  ticket_type text not null,
+  title text not null,
+  status text not null default 'Active',
+  created_at timestamptz not null default now()
+);
+
+create table if not exists public.center_console_troubleshooting_logs (
+  id uuid primary key default gen_random_uuid(),
+  asset_tag text not null,
+  city text,
+  online boolean not null default false,
+  stack_state jsonb not null default '{}'::jsonb,
+  action_type text not null check (action_type in ('connect', 'disconnect', 'toggle', 'request_logs')),
+  logs_text text,
+  requested_by uuid references auth.users(id) on delete set null,
+  created_at timestamptz not null default now()
+);
+
+alter table public.center_console_incidents enable row level security;
+alter table public.center_console_tickets enable row level security;
+alter table public.center_console_troubleshooting_logs enable row level security;
+
+drop policy if exists "Console incidents are publicly readable"
+  on public.center_console_incidents;
+
+drop policy if exists "Console tickets are publicly readable"
+  on public.center_console_tickets;
+
+drop policy if exists "Authenticated users can manage console assets"
+  on public.center_console_assets;
+
+drop policy if exists "Authenticated users can manage console incidents"
+  on public.center_console_incidents;
+
+drop policy if exists "Authenticated users can manage console tickets"
+  on public.center_console_tickets;
+
+drop policy if exists "Authenticated users can write troubleshooting logs"
+  on public.center_console_troubleshooting_logs;
+
+create policy "Console incidents are publicly readable"
+  on public.center_console_incidents for select
+  to anon, authenticated
+  using (true);
+
+create policy "Console tickets are publicly readable"
+  on public.center_console_tickets for select
+  to anon, authenticated
+  using (true);
+
+create policy "Authenticated users can manage console assets"
+  on public.center_console_assets for all
+  to authenticated
+  using (true)
+  with check (true);
+
+create policy "Authenticated users can manage console incidents"
+  on public.center_console_incidents for all
+  to authenticated
+  using (true)
+  with check (true);
+
+create policy "Authenticated users can manage console tickets"
+  on public.center_console_tickets for all
+  to authenticated
+  using (true)
+  with check (true);
+
+create policy "Authenticated users can write troubleshooting logs"
+  on public.center_console_troubleshooting_logs for all
+  to authenticated
+  using (true)
+  with check (true);
+
+create index if not exists center_console_incidents_city_idx
+  on public.center_console_incidents (city, created_at desc);
+
+create index if not exists center_console_tickets_city_idx
+  on public.center_console_tickets (city, created_at desc);
+
+create index if not exists center_console_troubleshooting_logs_asset_idx
+  on public.center_console_troubleshooting_logs (asset_tag, created_at desc);
+
+insert into public.center_console_incidents
+  (ticket_id, title, city, owner, severity, status, age_minutes, ai_summary, recommended_actions)
+values
+  (
+    'AVT-9421',
+    'Hard brake near protected bike lane',
+    'San Francisco',
+    'Planning',
+    'S1',
+    'Live triage',
+    7,
+    'Localized edge-case detected near curb interaction. Review replay and fallback planning outputs before route release.',
+    '["Pull replay bundle and route trace","Verify camera/lidar/radar health","Assign Planning handoff with evidence"]'::jsonb
+  ),
+  (
+    'AVT-9418',
+    'Thermal camera dropout at dusk',
+    'Los Angeles',
+    'Sensors',
+    'S1',
+    'Owner assigned',
+    13,
+    'Repeated thermal instability during lighting transition. Check calibration and thermal camera health.',
+    '["Run sensor calibration check","Inspect thermal camera signal loss","Confirm owner follow-up window"]'::jsonb
+  ),
+  (
+    'AVT-9414',
+    'Late cone classification in work zone',
+    'Seattle',
+    'Perception',
+    'S2',
+    'Replay queued',
+    19,
+    'Likely perception confidence drop under cluttered work-zone conditions.',
+    '["Queue replay review","Compare model confidence on cones","Validate route holdout"]'::jsonb
+  ),
+  (
+    'AVT-9409',
+    'Stale closure map on frontage road',
+    'Austin',
+    'Maps',
+    'S2',
+    'Monitoring',
+    41,
+    'Map freshness issue may be causing outdated closure guidance.',
+    '["Diff latest map build","Check closure ingestion feed","Confirm city-specific fallback"]'::jsonb
+  ),
+  (
+    'AVT-9402',
+    'Remote assist latency over threshold',
+    'Miami',
+    'Operations',
+    'S3',
+    'Waiting vendor',
+    60,
+    'Latency spike appears external; maintain monitoring while vendor investigates.',
+    '["Capture latency traces","Escalate to vendor","Monitor dispatch impact"]'::jsonb
+  )
+on conflict (ticket_id) do update set
+  title = excluded.title,
+  city = excluded.city,
+  owner = excluded.owner,
+  severity = excluded.severity,
+  status = excluded.status,
+  age_minutes = excluded.age_minutes,
+  ai_summary = excluded.ai_summary,
+  recommended_actions = excluded.recommended_actions;
+
+insert into public.center_console_tickets
+  (ticket_id, city, severity, ticket_type, title, status)
+values
+  ('TM-3012', 'San Francisco', 'S1', 'Perception', 'Pedestrian misclass near curb cut', 'Active'),
+  ('TM-3016', 'San Francisco', 'S2', 'Sensors', 'Camera exposure swing at sunset', 'In Progress'),
+  ('TM-3019', 'San Francisco', 'S3', 'Maps', 'Workzone lanelet mismatch', 'Active'),
+  ('TM-3021', 'Los Angeles', 'S1', 'Planning', 'Aggressive merge fallback', 'Active'),
+  ('TM-3024', 'Los Angeles', 'S2', 'Sensors', 'Radar dropout burst', 'In Progress'),
+  ('TM-3029', 'Seattle', 'S2', 'Operations', 'Remote assist call volume spike', 'Active'),
+  ('TM-3031', 'Seattle', 'S3', 'Compute', 'GPU thermal throttling warning', 'Active'),
+  ('TM-3034', 'Denver', 'S3', 'Maps', 'Speed limit data stale', 'Active'),
+  ('TM-3039', 'Austin', 'S2', 'Perception', 'Cone tracking drift in construction', 'Active'),
+  ('TM-3044', 'Austin', 'S1', 'Planning', 'Hard brake near crosswalk', 'Active'),
+  ('TM-3048', 'Miami', 'S3', 'Sensors', 'LiDAR reflectivity noise in rain', 'Active'),
+  ('TM-3052', 'Miami', 'S2', 'Operations', 'Dispatch handoff delay', 'In Progress'),
+  ('TM-3056', 'New York', 'S1', 'Operations', 'Blocked lane incident escalation', 'Active'),
+  ('TM-3059', 'New York', 'S2', 'Perception', 'Occlusion confidence drop downtown', 'Active')
+on conflict (ticket_id) do update set
+  city = excluded.city,
+  severity = excluded.severity,
+  ticket_type = excluded.ticket_type,
+  title = excluded.title,
+  status = excluded.status;

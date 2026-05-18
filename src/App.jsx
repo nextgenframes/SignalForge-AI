@@ -1,5 +1,6 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { MapcnMap } from './MapcnMap.jsx';
+import { supabase, supabaseEnabled } from './supabaseClient.js';
 
 const version = 'v2.5.0';
 
@@ -29,9 +30,9 @@ const locationsSeed = [
 const incidentSeed = [
   { id: 'AVT-9421', title: 'Hard brake near protected bike lane', city: 'San Francisco', owner: 'Planning', severity: 'S1', age: '07m', state: 'Live triage' },
   { id: 'AVT-9418', title: 'Thermal camera dropout at dusk', city: 'Los Angeles', owner: 'Sensors', severity: 'S1', age: '13m', state: 'Owner assigned' },
-  { id: 'AVT-9414', title: 'Late cone classification in work zone', city: 'Phoenix', owner: 'Perception', severity: 'S2', age: '19m', state: 'Replay queued' },
+  { id: 'AVT-9414', title: 'Late cone classification in work zone', city: 'Seattle', owner: 'Perception', severity: 'S2', age: '19m', state: 'Replay queued' },
   { id: 'AVT-9409', title: 'Stale closure map on frontage road', city: 'Austin', owner: 'Maps', severity: 'S2', age: '41m', state: 'Monitoring' },
-  { id: 'AVT-9402', title: 'Remote assist latency over threshold', city: 'Pittsburgh', owner: 'Operations', severity: 'S3', age: '1h', state: 'Waiting vendor' },
+  { id: 'AVT-9402', title: 'Remote assist latency over threshold', city: 'Miami', owner: 'Operations', severity: 'S3', age: '1h', state: 'Waiting vendor' },
 ];
 
 const ticketTypes = ['Planning', 'Sensors', 'Perception', 'Operations', 'Maps', 'Compute'];
@@ -157,7 +158,7 @@ const weatherSeed = [
 const assetsSeed = [
   { tag: 'AV-204', city: 'San Francisco', health: 87, miles: 118420, status: 'Investigate', battery: 71 },
   { tag: 'AV-118', city: 'Los Angeles', health: 93, miles: 91480, status: 'On route', battery: 84 },
-  { tag: 'AV-077', city: 'Phoenix', health: 91, miles: 96510, status: 'Ready', battery: 88 },
+  { tag: 'AV-077', city: 'Seattle', health: 91, miles: 96510, status: 'Ready', battery: 88 },
   { tag: 'AV-331', city: 'Austin', health: 79, miles: 73680, status: 'Service bay', battery: 64 },
   { tag: 'AV-419', city: 'Miami', health: 96, miles: 62410, status: 'Ready', battery: 91 },
 ];
@@ -220,29 +221,64 @@ function formatClock(date) {
   };
 }
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+function formatIncidentAge(ageMinutes) {
+  if (ageMinutes >= 60) return `${Math.round(ageMinutes / 60)}h`;
+  return `${String(ageMinutes).padStart(2, '0')}m`;
+}
 
-async function supabaseRequest(table, options = {}) {
-  if (!supabaseUrl || !supabaseKey) return null;
+function toIncidentView(row) {
+  return {
+    id: row.ticket_id,
+    title: row.title,
+    city: row.city,
+    owner: row.owner,
+    severity: row.severity,
+    age: formatIncidentAge(row.age_minutes),
+    state: row.status,
+    aiSummary: row.ai_summary,
+    recommendedActions: Array.isArray(row.recommended_actions) ? row.recommended_actions : [],
+  };
+}
 
-  const response = await fetch(`${supabaseUrl}/rest/v1/${table}${options.query || ''}`, {
-    method: options.method || 'GET',
-    headers: {
-      apikey: supabaseKey,
-      Authorization: `Bearer ${supabaseKey}`,
-      'Content-Type': 'application/json',
-      Prefer: 'return=representation',
-    },
-    body: options.body ? JSON.stringify(options.body) : undefined,
-  });
+async function getDashboardData() {
+  if (!supabaseEnabled || !supabase) return null;
 
-  if (!response.ok) throw new Error(`Supabase ${table} request failed`);
-  return response.status === 204 ? null : response.json();
+  const [locationResult, assetResult, milestoneResult, incidentResult, ticketResult] = await Promise.all([
+    supabase.from('center_console_locations').select('city,state,issue_count,severity,daily_cost,map_x,map_y').order('issue_count', { ascending: false }),
+    supabase.from('center_console_assets').select('asset_tag,health_score,mileage,status,center_console_locations(city)').order('health_score', { ascending: true }),
+    supabase.from('center_console_milestones').select('name,milestone_type,due_on,progress').order('due_on', { ascending: true }),
+    supabase.from('center_console_incidents').select('ticket_id,title,city,owner,severity,status,age_minutes,ai_summary,recommended_actions').order('created_at', { ascending: false }),
+    supabase.from('center_console_tickets').select('ticket_id,city,severity,ticket_type,title,status').order('created_at', { ascending: false }),
+  ]);
+
+  const firstError = [locationResult, assetResult, milestoneResult, incidentResult, ticketResult].find((result) => result.error)?.error;
+  if (firstError) throw firstError;
+
+  return {
+    locations: locationResult.data || [],
+    assets: assetResult.data || [],
+    milestones: milestoneResult.data || [],
+    incidents: incidentResult.data || [],
+    tickets: ticketResult.data || [],
+  };
 }
 
 function App() {
   const [loggedIn, setLoggedIn] = useState(false);
+  const [sessionReady, setSessionReady] = useState(!supabaseEnabled);
+  const [authStatus, setAuthStatus] = useState('Demo mode active');
+  const [authEmail, setAuthEmail] = useState('ops-admin@avfleet.com');
+  const [authPassword, setAuthPassword] = useState('center-console-demo');
+  const [registerDraft, setRegisterDraft] = useState({
+    fullName: '',
+    email: '',
+    password: '',
+    confirmPassword: '',
+  });
+  const [accountDraft, setAccountDraft] = useState({
+    password: '',
+    confirmPassword: '',
+  });
   const [active, setActive] = useState('Command Board');
   const [theme, setTheme] = useState('dark');
   const [now, setNow] = useState(() => new Date());
@@ -258,35 +294,40 @@ function App() {
   const [locations, setLocations] = useState(locationsSeed);
   const [assets, setAssets] = useState(assetsSeed);
   const [milestones, setMilestones] = useState(milestonesSeed);
+  const [incidents, setIncidents] = useState(incidentSeed);
+  const [tickets, setTickets] = useState(ticketSeed);
   const [aiSummary, setAiSummary] = useState('AI is correlating ticket velocity, fleet drift, maintenance cost, and milestone risk across all active AV locations.');
 
   useEffect(() => {
     let mounted = true;
     async function hydrateFromSupabase() {
+      if (!supabaseEnabled) {
+        setFeedbackStatus('Demo data online');
+        return;
+      }
+
       try {
-        const [locationRows, assetRows, milestoneRows] = await Promise.all([
-          supabaseRequest('center_console_locations?select=city,state,issue_count,severity,daily_cost,map_x,map_y&order=issue_count.desc'),
-          supabaseRequest('center_console_assets?select=asset_tag,health_score,mileage,status,center_console_locations(city)&order=health_score.asc'),
-          supabaseRequest('center_console_milestones?select=name,milestone_type,due_on,progress&order=due_on.asc'),
-        ]);
+        const data = await getDashboardData();
 
         if (!mounted) return;
-        if (locationRows?.length) {
-          const nextLocations = locationRows.map((row) => ({
+        if (data?.locations?.length) {
+          const nextLocations = data.locations.map((row) => ({
             city: row.city,
             state: row.state,
             issues: row.issue_count,
             severity: row.severity,
             x: row.map_x,
             y: row.map_y,
+            lng: locationsSeed.find((item) => item.city === row.city)?.lng,
+            lat: locationsSeed.find((item) => item.city === row.city)?.lat,
             cost: Number(row.daily_cost),
             open: Math.max(1, Math.round(row.issue_count / 7)),
           }));
           setLocations(nextLocations);
           setSelectedLocation(nextLocations[0]);
         }
-        if (assetRows?.length) {
-          setAssets(assetRows.map((row) => ({
+        if (data?.assets?.length) {
+          setAssets(data.assets.map((row) => ({
             tag: row.asset_tag,
             city: row.center_console_locations?.city || 'Unassigned',
             health: row.health_score,
@@ -295,8 +336,8 @@ function App() {
             battery: Math.min(98, Math.max(42, row.health_score - 4)),
           })));
         }
-        if (milestoneRows?.length) {
-          setMilestones(milestoneRows.map((row) => ({
+        if (data?.milestones?.length) {
+          setMilestones(data.milestones.map((row) => ({
             name: row.name,
             detail: row.milestone_type === 'Mileage' ? 'Mileage accumulation target' : `${row.milestone_type} program target`,
             due: new Date(`${row.due_on}T00:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
@@ -305,6 +346,20 @@ function App() {
             tone: row.progress === 100 ? 'green' : row.milestone_type === 'Finance' ? 'amber' : 'cyan',
           })));
         }
+        if (data?.incidents?.length) {
+          setIncidents(data.incidents.map(toIncidentView));
+        }
+        if (data?.tickets?.length) {
+          setTickets(data.tickets.map((row) => ({
+            id: row.ticket_id,
+            city: row.city,
+            severity: row.severity,
+            type: row.ticket_type,
+            title: row.title,
+            status: row.status,
+          })));
+        }
+        setFeedbackStatus('Supabase live');
       } catch {
         setFeedbackStatus('Demo data online');
       }
@@ -312,6 +367,30 @@ function App() {
 
     hydrateFromSupabase();
     return () => { mounted = false; };
+  }, []);
+
+  useEffect(() => {
+    if (!supabaseEnabled || !supabase) return undefined;
+
+    let subscribed = true;
+    supabase.auth.getSession().then(({ data }) => {
+      if (!subscribed) return;
+      setLoggedIn(Boolean(data.session));
+      setAuthEmail(data.session?.user?.email || 'ops-admin@avfleet.com');
+      setSessionReady(true);
+      setAuthStatus(data.session ? 'Signed in with Supabase' : 'Sign in with Supabase');
+    });
+
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      setLoggedIn(Boolean(session));
+      setAuthEmail(session?.user?.email || 'ops-admin@avfleet.com');
+      setSessionReady(true);
+    });
+
+    return () => {
+      subscribed = false;
+      listener.subscription.unsubscribe();
+    };
   }, []);
 
   useEffect(() => {
@@ -331,14 +410,17 @@ function App() {
     feedbackStatus,
     financeRows,
     hotspot,
+    incidents,
     locations,
     milestones,
     operationalCount,
     selectedLocation,
     setActive,
     setAssets,
+    setIncidents,
     setSelectedLocation,
     setSettingsTab,
+    tickets,
     setTheme,
     setUpdates,
     settingsTab,
@@ -369,7 +451,10 @@ function App() {
     setAlertsOpen(false);
   }
 
-  function logout() {
+  async function logout() {
+    if (supabase) {
+      await supabase.auth.signOut();
+    }
     setAccountOpen(false);
     setAlertsOpen(false);
     setFeedbackOpen(false);
@@ -379,18 +464,115 @@ function App() {
     setLoggedIn(false);
   }
 
+  async function signIn(event) {
+    event.preventDefault();
+    if (!supabaseEnabled || !supabase) {
+      setLoggedIn(true);
+      return;
+    }
+
+    setAuthStatus('Signing in...');
+    const { error } = await supabase.auth.signInWithPassword({
+      email: authEmail.trim(),
+      password: authPassword,
+    });
+
+    if (error) {
+      setAuthStatus(error.message);
+      return;
+    }
+
+    setAuthStatus('Signed in with Supabase');
+  }
+
+  async function registerAccount(event) {
+    event.preventDefault();
+    if (registerDraft.password !== registerDraft.confirmPassword) {
+      setAuthStatus('Passwords do not match');
+      return;
+    }
+
+    if (!supabaseEnabled || !supabase) {
+      setRegisterOpen(false);
+      setLoggedIn(true);
+      return;
+    }
+
+    setAuthStatus('Creating account...');
+    const { error } = await supabase.auth.signUp({
+      email: registerDraft.email.trim(),
+      password: registerDraft.password,
+      options: {
+        data: { full_name: registerDraft.fullName.trim() },
+      },
+    });
+
+    if (error) {
+      setAuthStatus(error.message);
+      return;
+    }
+
+    setRegisterOpen(false);
+    setAuthEmail(registerDraft.email.trim());
+    setAuthPassword('');
+    setRegisterDraft({ fullName: '', email: '', password: '', confirmPassword: '' });
+    setAuthStatus('Account created. Check email if confirmation is enabled.');
+  }
+
+  async function updatePassword(event) {
+    event.preventDefault();
+    if (accountDraft.password !== accountDraft.confirmPassword) {
+      setAuthStatus('Passwords do not match');
+      return;
+    }
+
+    if (!supabaseEnabled || !supabase) {
+      setAccountOpen(false);
+      setAuthStatus('Demo password updated');
+      return;
+    }
+
+    setAuthStatus('Updating password...');
+    const { error } = await supabase.auth.updateUser({ password: accountDraft.password });
+    if (error) {
+      setAuthStatus(error.message);
+      return;
+    }
+
+    setAccountDraft({ password: '', confirmPassword: '' });
+    setAccountOpen(false);
+    setAuthStatus('Password updated');
+  }
+
+  async function sendPasswordReset() {
+    if (!supabaseEnabled || !supabase || !authEmail.trim()) {
+      setAuthStatus('Enter your email to reset password');
+      return;
+    }
+
+    setAuthStatus('Sending reset email...');
+    const { error } = await supabase.auth.resetPasswordForEmail(authEmail.trim());
+    setAuthStatus(error ? error.message : 'Password reset email sent');
+  }
+
   async function submitFeedback(event) {
     event.preventDefault();
     if (!feedback.trim()) return;
     setFeedbackStatus('Sending feedback...');
     try {
-      await supabaseRequest('center_console_feedback', {
-        method: 'POST',
-        body: { message: feedback.trim(), page: active, user_email: 'ops-admin@avfleet.demo' },
-      });
-      setFeedbackStatus('Feedback sent to Supabase');
+      if (supabaseEnabled && supabase) {
+        const { error } = await supabase.from('center_console_feedback').insert({
+          message: feedback.trim(),
+          page: active,
+          user_email: authEmail,
+        });
+        if (error) throw error;
+        setFeedbackStatus('Feedback sent to Supabase');
+      } else {
+        setFeedbackStatus('Feedback captured in demo mode');
+      }
     } catch {
-      setFeedbackStatus('Feedback captured in demo mode');
+      setFeedbackStatus('Feedback save failed');
     }
     setFeedback('');
     setFeedbackOpen(false);
@@ -404,17 +586,18 @@ function App() {
           <div className="login-copy">
             <h1>Center Console Board</h1>
             <p>Autonomous vehicle triage operations, fleet health, finance, ticket hotspots, and project milestones in one AI-powered command surface.</p>
+            <span className="secure">{sessionReady ? authStatus : 'Checking session...'}</span>
           </div>
           <LoginOperationsMap locations={locations} />
         </section>
-        <form className="login-card" onSubmit={(event) => { event.preventDefault(); setLoggedIn(true); }}>
+        <form className="login-card" onSubmit={signIn}>
           <Brand compact />
           <h2>Welcome Back</h2>
           <p>Sign in to continue to your dashboard</p>
-          <label>Email<input defaultValue="ops-admin@avfleet.com" type="email" /></label>
-          <label>Password<input defaultValue="center-console-demo" type="password" /></label>
-          <div className="login-options"><label><input defaultChecked type="checkbox" /> Remember me</label><button type="button">Forgot password?</button></div>
-          <button className="primary" type="submit">Sign In</button>
+          <label>Email<input value={authEmail} onChange={(event) => setAuthEmail(event.target.value)} type="email" /></label>
+          <label>Password<input value={authPassword} onChange={(event) => setAuthPassword(event.target.value)} type="password" /></label>
+          <div className="login-options"><label><input defaultChecked type="checkbox" /> Remember me</label><button type="button" onClick={sendPasswordReset}>Forgot password?</button></div>
+          <button className="primary" type="submit" disabled={!sessionReady}>Sign In</button>
           <button className="demo-button" onClick={(e) => { e.preventDefault(); setLoggedIn(true); }} type="button">Enter Demo</button>
           <button className="register-link" onClick={(e) => { e.preventDefault(); setRegisterOpen(true); }} type="button">Create an account</button>
           <span className="secure">Secured with enterprise SSO</span>
@@ -424,17 +607,17 @@ function App() {
             <form
               className="register-modal"
               onClick={(e) => e.stopPropagation()}
-              onSubmit={(e) => { e.preventDefault(); setRegisterOpen(false); setLoggedIn(true); }}
+              onSubmit={registerAccount}
               role="dialog"
               aria-modal="true"
               aria-label="Register account"
             >
               <h2>Create Account</h2>
-              <p>Demo registration creates a local session.</p>
-              <label>Full name<input type="text" placeholder="Ops user" required /></label>
-              <label>Email<input type="email" placeholder="name@company.com" required /></label>
-              <label>Password<input type="password" placeholder="Create password" required /></label>
-              <label>Confirm password<input type="password" placeholder="Confirm password" required /></label>
+              <p>{supabaseEnabled ? 'Register with Supabase Auth.' : 'Demo registration creates a local session.'}</p>
+              <label>Full name<input type="text" placeholder="Ops user" required value={registerDraft.fullName} onChange={(e) => setRegisterDraft((current) => ({ ...current, fullName: e.target.value }))} /></label>
+              <label>Email<input type="email" placeholder="name@company.com" required value={registerDraft.email} onChange={(e) => setRegisterDraft((current) => ({ ...current, email: e.target.value }))} /></label>
+              <label>Password<input type="password" placeholder="Create password" required value={registerDraft.password} onChange={(e) => setRegisterDraft((current) => ({ ...current, password: e.target.value }))} /></label>
+              <label>Confirm password<input type="password" placeholder="Confirm password" required value={registerDraft.confirmPassword} onChange={(e) => setRegisterDraft((current) => ({ ...current, confirmPassword: e.target.value }))} /></label>
               <div className="account-actions">
                 <button type="button" onClick={() => setRegisterOpen(false)}>Cancel</button>
                 <button className="primary" type="submit">Register</button>
@@ -524,11 +707,11 @@ function App() {
 
       {accountOpen && (
         <div className="modal-backdrop" role="presentation" onClick={() => setAccountOpen(false)}>
-          <form className="account-modal" onSubmit={(e) => { e.preventDefault(); setAccountOpen(false); }} role="dialog" aria-modal="true" aria-label="Account settings" onClick={(e) => e.stopPropagation()}>
+          <form className="account-modal" onSubmit={updatePassword} role="dialog" aria-modal="true" aria-label="Account settings" onClick={(e) => e.stopPropagation()}>
             <h2>Account</h2>
             <p>Manage your Center Console operator session.</p>
-            <label>New password<input type="password" placeholder="Enter new password" /></label>
-            <label>Confirm password<input type="password" placeholder="Confirm new password" /></label>
+            <label>New password<input type="password" placeholder="Enter new password" value={accountDraft.password} onChange={(e) => setAccountDraft((current) => ({ ...current, password: e.target.value }))} /></label>
+            <label>Confirm password<input type="password" placeholder="Confirm new password" value={accountDraft.confirmPassword} onChange={(e) => setAccountDraft((current) => ({ ...current, confirmPassword: e.target.value }))} /></label>
             <div className="account-actions">
               <button type="button" onClick={() => setAccountOpen(false)}>Cancel</button>
               <button className="primary" type="submit">Update password</button>
@@ -618,10 +801,10 @@ function LoginOperationsMap() {
 function PageRouter(props) {
   const pages = {
     'Command Board': <CommandBoardPage {...props} />,
-    Incidents: <IncidentsPage />,
+    Incidents: <IncidentsPage incidents={props.incidents} setIncidents={props.setIncidents} />,
     'Fleet Health': <FleetHealthPage {...props} />,
-    Assets: <AssetsPage assets={props.assets} setAssets={props.setAssets} />,
-    Troubleshooting: <TroubleshootingPage hotspot={props.hotspot} assets={props.assets} />,
+    Assets: <AssetsPage assets={props.assets} locations={props.locations} setAssets={props.setAssets} />,
+    Troubleshooting: <TroubleshootingPage assets={props.assets} hotspot={props.hotspot} />,
     'Tickets Map': <TicketsMapPage {...props} />,
     Weather: <WeatherPage {...props} />,
     Finance: <FinancePage {...props} />,
@@ -638,7 +821,7 @@ function CommandBoardPage(props) {
       <TicketMapPanel {...props} className="map-panel" />
       <FleetHealthPanel {...props} />
       <FinancePanel {...props} />
-      <IncidentsPanel setActive={props.setActive} active={props.active} />
+      <IncidentsPanel incidents={props.incidents} setActive={props.setActive} active={props.active} />
       <AssetsPanel assets={props.assets} setActive={props.setActive} />
       <MilestonesPanel milestones={props.milestones} setActive={props.setActive} active={props.active} className="wide-panel" />
       <TroubleshootingPanel hotspot={props.hotspot} className="milestone-panel" />
@@ -647,12 +830,14 @@ function CommandBoardPage(props) {
   );
 }
 
-function IncidentsPage() {
+function IncidentsPage({ incidents, setIncidents }) {
   const [detailOpen, setDetailOpen] = useState(false);
   const [selectedIncident, setSelectedIncident] = useState(null);
+  const [incidentStatusDraft, setIncidentStatusDraft] = useState('');
 
   function openIncident(incident) {
     setSelectedIncident(incident);
+    setIncidentStatusDraft(incident.state);
     setDetailOpen(true);
   }
 
@@ -661,12 +846,32 @@ function IncidentsPage() {
     setSelectedIncident(null);
   }
 
+  async function saveIncidentStatus() {
+    if (!selectedIncident) return;
+
+    if (supabaseEnabled && supabase) {
+      const { error } = await supabase
+        .from('center_console_incidents')
+        .update({ status: incidentStatusDraft })
+        .eq('ticket_id', selectedIncident.id);
+
+      if (error) return;
+    }
+
+    setIncidents((current) => current.map((incident) => (
+      incident.id === selectedIncident.id
+        ? { ...incident, state: incidentStatusDraft }
+        : incident
+    )));
+    setSelectedIncident((current) => (current ? { ...current, state: incidentStatusDraft } : current));
+  }
+
   return (
     <section className="page-grid incidents-page">
       <Panel className="wide-panel" title="Incident Command Queue" action="Simulated live data">
         <div className="table-list">
           <div className="table-head"><span>Ticket</span><span>Issue</span><span>Location</span><span>Owner</span><span>Status</span><span>Age</span></div>
-          {incidentSeed.map((incident) => (
+          {incidents.map((incident) => (
             <article
               key={incident.id}
               className="click-row"
@@ -705,22 +910,39 @@ function IncidentsPage() {
                 <article><span>Age</span><strong>{selectedIncident.age}</strong></article>
                 <article><span>Priority</span><strong>{selectedIncident.severity}</strong></article>
               </div>
+              <label className="incident-status-field">
+                Ticket status
+                <select value={incidentStatusDraft} onChange={(event) => setIncidentStatusDraft(event.target.value)}>
+                  <option value="Live triage">Live triage</option>
+                  <option value="Owner assigned">Owner assigned</option>
+                  <option value="Replay queued">Replay queued</option>
+                  <option value="Monitoring">Monitoring</option>
+                  <option value="Waiting vendor">Waiting vendor</option>
+                  <option value="Resolved">Resolved</option>
+                </select>
+              </label>
               <div className="incident-detail-grid">
                 <section>
                   <h4>AI Summary</h4>
                   <p className="page-note">
-                    Simulated triage suggests this event is driven by a localized edge-case. Prioritize replay capture, sensor health verification,
-                    then validate planning fallback behavior before releasing the vehicle back to route.
+                    {selectedIncident.aiSummary || 'Simulated triage suggests this event is driven by a localized edge-case. Prioritize replay capture, sensor health verification, then validate planning fallback behavior before releasing the vehicle back to route.'}
                   </p>
                 </section>
                 <section>
                   <h4>Recommended Actions</h4>
                   <ol className="playbook compact">
-                    <li>Pull replay bundle and log snapshot for {selectedIncident.city}.</li>
-                    <li>Confirm sensor health and calibration signals (camera, lidar, radar).</li>
-                    <li>Assign owner handoff to {selectedIncident.owner} with evidence + next check time.</li>
+                    {(selectedIncident.recommendedActions?.length
+                      ? selectedIncident.recommendedActions
+                      : [
+                          `Pull replay bundle and log snapshot for ${selectedIncident.city}.`,
+                          'Confirm sensor health and calibration signals (camera, lidar, radar).',
+                          `Assign owner handoff to ${selectedIncident.owner} with evidence + next check time.`,
+                        ]).map((step) => <li key={step}>{step}</li>)}
                   </ol>
                 </section>
+              </div>
+              <div className="account-actions">
+                <button type="button" onClick={saveIncidentStatus}>Save status</button>
               </div>
             </div>
           </div>
@@ -776,7 +998,7 @@ function FleetHealthPage(props) {
   );
 }
 
-function AssetsPage({ assets, setAssets }) {
+function AssetsPage({ assets, locations, setAssets }) {
   const [editOpen, setEditOpen] = useState(false);
   const [editMode, setEditMode] = useState('add'); // add | edit
   const [draft, setDraft] = useState({
@@ -791,7 +1013,7 @@ function AssetsPage({ assets, setAssets }) {
   function nextDraft() {
     const nextNumber = 420 + assets.length;
     const health = 78 + ((assets.length * 7) % 21);
-    const city = ['San Francisco', 'Los Angeles', 'Phoenix', 'Austin', 'Miami'][assets.length % 5];
+    const city = ['San Francisco', 'Los Angeles', 'Seattle', 'Austin', 'Miami'][assets.length % 5];
     const miles = 52000 + assets.length * 8420;
     const status = health > 90 ? 'Ready' : health > 84 ? 'On route' : 'Investigate';
     const battery = Math.min(96, health + 2);
@@ -817,7 +1039,7 @@ function AssetsPage({ assets, setAssets }) {
     setEditOpen(true);
   }
 
-  function saveDraft(event) {
+  async function saveDraft(event) {
     event.preventDefault();
     const cleaned = {
       tag: String(draft.tag || '').trim(),
@@ -829,6 +1051,29 @@ function AssetsPage({ assets, setAssets }) {
     };
 
     if (!cleaned.tag || !cleaned.city || !cleaned.status) return;
+
+    if (supabaseEnabled && supabase) {
+      const locationRow = locations.find((item) => item.city === cleaned.city);
+      const locationLookup = locationRow
+        ? await supabase.from('center_console_locations').select('id').eq('city', locationRow.city).maybeSingle()
+        : { data: null, error: null };
+
+      if (locationLookup.error) {
+        return;
+      }
+
+      const { error } = await supabase.from('center_console_assets').upsert({
+        asset_tag: cleaned.tag,
+        location_id: locationLookup.data?.id || null,
+        health_score: cleaned.health,
+        mileage: cleaned.miles,
+        status: cleaned.status,
+      });
+
+      if (error) {
+        return;
+      }
+    }
 
     if (editMode === 'add') {
       setAssets((currentAssets) => {
@@ -843,9 +1088,15 @@ function AssetsPage({ assets, setAssets }) {
     setEditOpen(false);
   }
 
-  function removeAsset(tag) {
+  async function removeAsset(tag) {
     const ok = window.confirm(`Remove ${tag} from fleet assets?`);
     if (!ok) return;
+
+    if (supabaseEnabled && supabase) {
+      const { error } = await supabase.from('center_console_assets').delete().eq('asset_tag', tag);
+      if (error) return;
+    }
+
     setAssets((currentAssets) => currentAssets.filter((asset) => asset.tag !== tag));
   }
 
@@ -854,7 +1105,7 @@ function AssetsPage({ assets, setAssets }) {
       <Panel className="wide-panel" title="Asset Registry" action={`${assets.length} demo assets`}>
         <div className="asset-actions">
           <button className="primary small-action" onClick={openAdd} type="button">Add demo asset</button>
-          <span>Simulated fleet records update locally for this session.</span>
+          <span>{supabaseEnabled ? 'Fleet records write through to Supabase.' : 'Simulated fleet records update locally for this session.'}</span>
         </div>
         <div className="asset-table">
           <div className="table-head"><span>Vehicle</span><span>Location</span><span>Status</span><span>Health</span><span>Battery</span><span>Mileage</span><span>Action</span></div>
@@ -878,7 +1129,7 @@ function AssetsPage({ assets, setAssets }) {
         <div className="modal-backdrop" role="presentation" onClick={() => setEditOpen(false)}>
           <form className="asset-edit-modal" onClick={(e) => e.stopPropagation()} onSubmit={saveDraft} role="dialog" aria-modal="true" aria-label="Edit asset">
             <h2>{editMode === 'add' ? 'Add Asset' : 'Edit Asset'}</h2>
-            <p>Simulated asset editor updates local demo data.</p>
+            <p>{supabaseEnabled ? 'Asset changes save to Supabase and update the dashboard.' : 'Simulated asset editor updates local demo data.'}</p>
             <label>Vehicle tag<input value={draft.tag} onChange={(e) => setDraft((d) => ({ ...d, tag: e.target.value }))} disabled={editMode === 'edit'} /></label>
             <label>Location<input value={draft.city} onChange={(e) => setDraft((d) => ({ ...d, city: e.target.value }))} /></label>
             <label>Status
@@ -931,6 +1182,18 @@ function TroubleshootingPage({ hotspot, assets }) {
   const assetTags = useMemo(() => assets.map((a) => a.tag), [assets]);
   const connectedAsset = useMemo(() => assets.find((a) => a.tag === connectedTag) || null, [assets, connectedTag]);
 
+  async function persistTroubleshootingEvent(actionType, overrides = {}) {
+    if (!supabaseEnabled || !supabase) return;
+    await supabase.from('center_console_troubleshooting_logs').insert({
+      asset_tag: overrides.assetTag || connectedTag || query.trim().toUpperCase(),
+      city: overrides.city || connectedAsset?.city || null,
+      online: typeof overrides.online === 'boolean' ? overrides.online : vehicleOnline,
+      stack_state: overrides.stackState || stack,
+      action_type: actionType,
+      logs_text: overrides.logsText || null,
+    });
+  }
+
   function connect() {
     const clean = query.trim().toUpperCase();
     if (!clean) return;
@@ -941,10 +1204,17 @@ function TroubleshootingPage({ hotspot, assets }) {
     setLogsText('');
     setConnectHint(isKnown ? '' : 'Connected in demo mode (not in current asset list).');
     // Simulated reachability check: most vehicles are online, some are offline.
-    setVehicleOnline(Math.random() > 0.18);
+    const nextOnline = Math.random() > 0.18;
+    setVehicleOnline(nextOnline);
+    persistTroubleshootingEvent('connect', {
+      assetTag: match,
+      city: assets.find((asset) => asset.tag === match)?.city || null,
+      online: nextOnline,
+    });
   }
 
   function disconnect() {
+    persistTroubleshootingEvent('disconnect');
     setConnectedTag('');
     setLogsStatus('Idle');
     setLogsText('');
@@ -971,6 +1241,16 @@ function TroubleshootingPage({ hotspot, assets }) {
         ].join('\n')
       );
       setLogsStatus('Logs ready');
+      persistTroubleshootingEvent('request_logs', {
+        logsText: [
+          `${ts} vehicle=${base}`,
+          `stack: ${enabled || 'none'}`,
+          `sensors: cam=ok lidar=ok radar=ok`,
+          `planner: route=active assist=standby`,
+          `perception: fps=18.7 latency_p95=74ms`,
+          `health: cpu=62% gpu=48% temp=71C`,
+        ].join('\n'),
+      });
     }, 700);
   }
 
@@ -1049,7 +1329,13 @@ function TroubleshootingPage({ hotspot, assets }) {
                   <input
                     type="checkbox"
                     checked={Boolean(stack[key])}
-                    onChange={() => setStack((s) => ({ ...s, [key]: !s[key] }))}
+                    onChange={() => {
+                      setStack((current) => {
+                        const nextState = { ...current, [key]: !current[key] };
+                        persistTroubleshootingEvent('toggle', { stackState: nextState });
+                        return nextState;
+                      });
+                    }}
                     disabled={!connectedTag}
                   />
                   <span>{label}</span>
@@ -1255,13 +1541,13 @@ function SettingsPage(props) {
   );
 }
 
-function TicketMapPanel({ locations, selectedLocation, setSelectedLocation, setActive, active, theme, className = '' }) {
+function TicketMapPanel({ locations, selectedLocation, setSelectedLocation, setActive, active, theme, tickets, className = '' }) {
   const [severityFilter, setSeverityFilter] = useState('All');
   const [typeFilter, setTypeFilter] = useState('All');
   const [search, setSearch] = useState('');
 
   const filteredTickets = useMemo(() => {
-    return ticketSeed.filter((t) => {
+    return tickets.filter((t) => {
       if (severityFilter !== 'All' && t.severity !== severityFilter) return false;
       if (typeFilter !== 'All' && t.type !== typeFilter) return false;
       if (search.trim()) {
@@ -1270,7 +1556,7 @@ function TicketMapPanel({ locations, selectedLocation, setSelectedLocation, setA
       }
       return true;
     });
-  }, [severityFilter, typeFilter, search]);
+  }, [severityFilter, tickets, typeFilter, search]);
 
   const openByCity = useMemo(() => {
     const map = new Map();
@@ -1416,7 +1702,7 @@ function FinancePanel({ dailyCost, financeRows, setActive, active }) {
   );
 }
 
-function IncidentsPanel({ setActive, active }) {
+function IncidentsPanel({ incidents, setActive, active }) {
   return (
     <Panel
       title="Incidents"
@@ -1424,7 +1710,7 @@ function IncidentsPanel({ setActive, active }) {
       onAction={setActive && active !== 'Incidents' ? () => setActive('Incidents') : undefined}
     >
       <div className="incident-list">
-        {incidentSeed.map((incident) => (
+        {incidents.map((incident) => (
           <article key={incident.id}>
             <span className={`severity ${incident.severity}`}>{incident.severity}</span>
             <div><strong>{incident.title}</strong><p>{incident.id} / {incident.city} / {incident.owner}</p></div>
@@ -1557,12 +1843,12 @@ function SettingsAppearance({ theme, setTheme }) {
 }
 
 function SettingsSupabase() {
-  const configured = Boolean(supabaseUrl && supabaseKey);
+  const configured = supabaseEnabled;
   return (
     <div className="settings-body">
       <div className="setting-line"><span>Data source</span><strong>{configured ? 'Supabase connected' : 'Demo fallback'}</strong></div>
-      <div className="setting-line"><span>Tables</span><strong>locations, assets, milestones, feedback</strong></div>
-      <p className="note">Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to use live Supabase reads and feedback inserts.</p>
+      <div className="setting-line"><span>Tables</span><strong>locations, assets, milestones, incidents, tickets, troubleshooting_logs, feedback</strong></div>
+      <p className="note">Add `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`, then run `supabase-schema.sql` to enable auth, live reads, and write actions.</p>
     </div>
   );
 }
