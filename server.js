@@ -2,10 +2,6 @@ const http = require("http");
 const fs = require("fs");
 const path = require("path");
 const loadLocalEnv = require("./load-env.cjs");
-const youtubeSearch = require("./api/youtube-search");
-const youtubeStatus = require("./api/youtube-status");
-const aiStatus = require("./api/ai-status");
-const avTriage = require("./api/av-triage");
 
 const root = __dirname;
 loadLocalEnv(root);
@@ -30,26 +26,6 @@ function serveFile(res, filePath, contentType) {
 }
 
 const server = http.createServer((req, res) => {
-  if (req.url.startsWith("/api/youtube-search")) {
-    youtubeSearch(req, res);
-    return;
-  }
-
-  if (req.url.startsWith("/api/youtube-status")) {
-    youtubeStatus(req, res);
-    return;
-  }
-
-  if (req.url.startsWith("/api/ai-status")) {
-    aiStatus(req, res);
-    return;
-  }
-
-  if (req.url.startsWith("/api/av-triage")) {
-    avTriage(req, res);
-    return;
-  }
-
   if (req.url === "/favicon.svg") {
     serveFile(res, path.join(root, "favicon.svg"), "image/svg+xml; charset=utf-8");
     return;
@@ -75,7 +51,7 @@ const server = http.createServer((req, res) => {
 
 if (require.main === module) {
   server.listen(port, host, () => {
-    console.log(`Bob on Call is running at http://${host}:${port}`);
+    console.log(`Center Console Board running at http://${host}:${port}`);
   });
 }
 
