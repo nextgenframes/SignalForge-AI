@@ -571,8 +571,9 @@ function App() {
       } else {
         setFeedbackStatus('Feedback captured in demo mode');
       }
-    } catch {
-      setFeedbackStatus('Feedback save failed');
+    } catch (error) {
+      setFeedbackStatus(error?.message ? `Feedback save failed: ${error.message}` : 'Feedback save failed');
+      return;
     }
     setFeedback('');
     setFeedbackOpen(false);
@@ -700,6 +701,7 @@ function App() {
             <h2>Submit feedback</h2>
             <p>Send product feedback to the Center Console operations team.</p>
             <textarea value={feedback} onChange={(event) => setFeedback(event.target.value)} placeholder="What would make this board better for your shift?" />
+            <p className="feedback-status">{feedbackStatus}</p>
             <div><button type="button" onClick={() => setFeedbackOpen(false)}>Cancel</button><button className="primary" type="submit">Send feedback</button></div>
           </form>
         </div>

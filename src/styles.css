@@ -2647,6 +2647,12 @@ svg {
   font-size: 0.9rem;
 }
 
+.feedback-modal .feedback-status {
+  color: var(--cyan);
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
 .feedback-modal textarea {
   min-height: 150px;
   resize: vertical;
