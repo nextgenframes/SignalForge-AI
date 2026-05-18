@@ -2695,6 +2695,15 @@ svg {
   .asset-list.detailed article { grid-template-columns: 1fr; }
   .cost-driver-grid,
   .subsystem-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .location-list-cards { grid-template-columns: 1fr; }
+  .weather-next { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .settings-tabs {
+    overflow-x: auto;
+    padding-bottom: 4px;
+  }
+  .settings-tabs button {
+    white-space: nowrap;
+  }
 }
 
 @media (max-width: 760px) {
@@ -2736,6 +2745,24 @@ svg {
     padding: 0 12px;
   }
   .workspace { padding: 14px 12px 84px; }
+  .topbar {
+    gap: 12px;
+  }
+  .topbar h1 {
+    font-size: 1.35rem;
+    line-height: 1.1;
+  }
+  .topbar p {
+    font-size: 0.82rem;
+  }
+  .topbar-actions {
+    width: 100%;
+    gap: 10px;
+  }
+  .ai-pill {
+    width: 100%;
+    justify-content: center;
+  }
   .metric-row,
   .map-toolbar,
   .fleet-health,
@@ -2746,8 +2773,133 @@ svg {
   .incident-list article,
   .asset-list article,
   .insight-strip { grid-template-columns: 1fr; }
+  .panel {
+    padding: 12px;
+  }
+  .panel header {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .panel-action {
+    padding-left: 0;
+    padding-right: 0;
+  }
+  .map-toolbar {
+    gap: 8px;
+  }
+  .map-filter select,
+  .map-toolbar .map-search,
+  .map-toolbar button {
+    min-height: 40px;
+  }
   .monitor-map { min-height: 330px; }
-  .ticket-legend { width: 124px; }
+  .ticket-legend {
+    width: 118px;
+    left: 10px;
+    top: 10px;
+  }
+  .ticket-legend span {
+    min-height: 38px;
+    padding: 0 10px;
+    font-size: 0.7rem;
+  }
+  .location-card,
+  .location-card.mini {
+    gap: 6px;
+    padding: 10px;
+  }
+  .location-card strong,
+  .location-card.mini strong {
+    font-size: 0.95rem;
+  }
+  .weather-card header,
+  .weather-ai,
+  .vehicle-status-row,
+  .vehicle-summary {
+    grid-template-columns: 1fr;
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .weather-now span {
+    text-align: left;
+  }
+  .weather-meta {
+    grid-template-columns: 1fr;
+  }
+  .weather-next {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .weather-day {
+    padding: 7px 6px;
+  }
+  .mileage-copy {
+    position: static;
+    margin-bottom: 8px;
+  }
+  .mileage-copy strong {
+    font-size: 1.7rem;
+  }
+  .mileage-chart {
+    min-height: 0;
+  }
+  .mileage-chart svg {
+    height: 190px;
+  }
+  .donut {
+    width: 150px;
+    height: 150px;
+  }
+  .donut::after,
+  .donut-center {
+    inset: 28px;
+  }
+  .table-list article strong,
+  .asset-table article strong,
+  .finance-table article strong {
+    font-size: 0.9rem;
+  }
   .milestone-status { text-align: left; }
   .feedback-button { left: 16px; right: 16px; justify-content: center; }
+}
+
+@media (max-width: 520px) {
+  .workspace {
+    padding: 12px 10px 88px;
+  }
+  .metric-row {
+    grid-template-columns: 1fr;
+  }
+  .metric {
+    min-height: 126px;
+  }
+  .map-toolbar {
+    grid-template-columns: 1fr;
+  }
+  .monitor-map {
+    min-height: 290px;
+  }
+  .location-list-cards,
+  .weather-grid,
+  .cost-driver-grid,
+  .subsystem-grid {
+    grid-template-columns: 1fr;
+  }
+  .weather-next {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .settings-tabs button,
+  .theme-options button,
+  .feedback-modal button {
+    min-height: 40px;
+  }
+  .account-actions,
+  .vehicle-actions {
+    width: 100%;
+    justify-content: stretch;
+  }
+  .account-actions button,
+  .vehicle-actions button {
+    flex: 1 1 auto;
+  }
 }
