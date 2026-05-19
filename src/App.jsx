@@ -291,6 +291,7 @@ function App() {
   const [alertsOpen, setAlertsOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
   const [registerOpen, setRegisterOpen] = useState(false);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [locations, setLocations] = useState(locationsSeed);
   const [assets, setAssets] = useState(assetsSeed);
   const [milestones, setMilestones] = useState(milestonesSeed);
@@ -464,6 +465,10 @@ function App() {
     setLoggedIn(false);
   }
 
+  useEffect(() => {
+    setMobileNavOpen(false);
+  }, [active]);
+
   async function signIn(event) {
     event.preventDefault();
     if (!supabaseEnabled || !supabase) {
@@ -634,6 +639,40 @@ function App() {
     <main className="app-shell" data-theme={theme}>
       <aside className="sidebar">
         <Brand />
+        <div className="mobile-tab-picker">
+          <button
+            aria-expanded={mobileNavOpen}
+            aria-haspopup="listbox"
+            className={`mobile-tab-trigger ${mobileNavOpen ? 'open' : ''}`}
+            onClick={() => setMobileNavOpen((current) => !current)}
+            type="button"
+          >
+            <span className="mobile-tab-trigger-copy">
+              <small>View</small>
+              <strong>{active}</strong>
+            </span>
+            <Icon name="chevron" />
+          </button>
+          {mobileNavOpen && (
+            <div className="mobile-tab-menu" role="listbox" aria-label="Select dashboard tab">
+              {navItems.map(([label, icon]) => (
+                <button
+                  aria-selected={active === label}
+                  className={active === label ? 'selected' : ''}
+                  key={label}
+                  onClick={() => {
+                    setActive(label);
+                    setMobileNavOpen(false);
+                  }}
+                  type="button"
+                >
+                  <Icon name={icon} />
+                  <span>{label}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
         <nav aria-label="Primary">
           {navItems.map(([label, icon]) => (
             <button aria-label={label} className={active === label ? 'active' : ''} key={label} onClick={() => setActive(label)} type="button">
@@ -754,6 +793,7 @@ function Brand({ compact = false }) {
 	    expand: 'M8 3H3v5m13-5h5v5M8 21H3v-5m18 0v5h-5',
 	    target: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Zm0-5a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm0-14v3m0 14v3m10-10h-3M5 12H2',
 	    message: 'M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4v8Z',
+	    chevron: 'm6 9 6 6 6-6',
 	  };
 	  return <svg viewBox="0 0 24 24" aria-hidden="true"><path d={paths[name]} /></svg>;
 	}
