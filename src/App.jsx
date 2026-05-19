@@ -33,6 +33,11 @@ const incidentSeed = [
   { id: 'AVT-9414', title: 'Late cone classification in work zone', city: 'Seattle', owner: 'Perception', severity: 'S2', age: '19m', state: 'Replay queued' },
   { id: 'AVT-9409', title: 'Stale closure map on frontage road', city: 'Austin', owner: 'Maps', severity: 'S2', age: '41m', state: 'Monitoring' },
   { id: 'AVT-9402', title: 'Remote assist latency over threshold', city: 'Miami', owner: 'Operations', severity: 'S3', age: '1h', state: 'Waiting vendor' },
+  { id: 'AVT-9399', title: 'Cyclist trajectory confidence drop near ferry terminal', city: 'San Francisco', owner: 'Prediction', severity: 'S1', age: '1h', state: 'Replay pending' },
+  { id: 'AVT-9394', title: 'Lane localization drift after temporary striping', city: 'Denver', owner: 'Localization', severity: 'S2', age: '1h', state: 'Map compare' },
+  { id: 'AVT-9391', title: 'Crosswalk occlusion event during heavy glare', city: 'New York', owner: 'Perception', severity: 'S1', age: '2h', state: 'Owner assigned' },
+  { id: 'AVT-9385', title: 'Rain sensor false degrade signal', city: 'Seattle', owner: 'Sensors', severity: 'S3', age: '2h', state: 'Monitoring' },
+  { id: 'AVT-9378', title: 'Construction barrel route fallback too aggressive', city: 'Austin', owner: 'Planning', severity: 'S2', age: '3h', state: 'Mitigation ready' },
 ];
 
 const ticketTypes = ['Planning', 'Sensors', 'Perception', 'Operations', 'Maps', 'Compute'];
@@ -52,6 +57,12 @@ const ticketSeed = [
   { id: 'TM-3052', city: 'Miami', severity: 'S2', type: 'Operations', title: 'Dispatch handoff delay' },
   { id: 'TM-3056', city: 'New York', severity: 'S1', type: 'Operations', title: 'Blocked lane incident escalation' },
   { id: 'TM-3059', city: 'New York', severity: 'S2', type: 'Perception', title: 'Occlusion confidence drop downtown' },
+  { id: 'TM-3062', city: 'Denver', severity: 'S2', type: 'Localization', title: 'Position estimate wobble at merge split' },
+  { id: 'TM-3065', city: 'Austin', severity: 'S1', type: 'Planning', title: 'Late stop profile at protected turn' },
+  { id: 'TM-3068', city: 'Seattle', severity: 'S3', type: 'Sensors', title: 'Rain bead camera blur event' },
+  { id: 'TM-3071', city: 'Miami', severity: 'S2', type: 'Operations', title: 'Dispatch queue congestion after storm cell' },
+  { id: 'TM-3074', city: 'Los Angeles', severity: 'S1', type: 'Perception', title: 'Cyclist edge classification confidence drop' },
+  { id: 'TM-3077', city: 'New York', severity: 'S3', type: 'Maps', title: 'Curb lane closure metadata stale' },
 ];
 
 const weatherSeed = [
@@ -818,14 +829,16 @@ function Panel({ title, action, onAction, children, className = '' }) {
     <section className={`panel ${className}`}>
       <header>
         <h2>{title}</h2>
-        <button
-          className={`panel-action ${onAction ? 'clickable' : ''}`}
-          type="button"
-          onClick={onAction}
-          disabled={!onAction}
-        >
-          {action}
-        </button>
+        {action ? (
+          <button
+            className={`panel-action ${onAction ? 'clickable' : ''}`}
+            type="button"
+            onClick={onAction}
+            disabled={!onAction}
+          >
+            {action}
+          </button>
+        ) : null}
       </header>
       {children}
     </section>
@@ -876,6 +889,20 @@ function IncidentsPage({ incidents, setIncidents }) {
   const [detailOpen, setDetailOpen] = useState(false);
   const [selectedIncident, setSelectedIncident] = useState(null);
   const [incidentStatusDraft, setIncidentStatusDraft] = useState('');
+  const severityMix = useMemo(() => {
+    const totals = incidents.reduce((acc, incident) => {
+      acc[incident.severity] = (acc[incident.severity] || 0) + 1;
+      return acc;
+    }, { S1: 0, S2: 0, S3: 0 });
+    const max = Math.max(...Object.values(totals), 1);
+    const activeCount = incidents.filter((incident) => incident.state !== 'Waiting vendor').length;
+    return [
+      { level: 'S1', className: 'red', height: `${Math.max(24, Math.round((totals.S1 / max) * 100))}%`, count: totals.S1 },
+      { level: 'S2', className: 'orange', height: `${Math.max(24, Math.round((totals.S2 / max) * 100))}%`, count: totals.S2 },
+      { level: 'S3', className: 'amber', height: `${Math.max(24, Math.round((totals.S3 / max) * 100))}%`, count: totals.S3 },
+      { level: 'Active', className: 'blue', height: `${Math.max(24, Math.round((activeCount / Math.max(incidents.length, 1)) * 100))}%`, count: activeCount },
+    ];
+  }, [incidents]);
 
   function openIncident(incident) {
     setSelectedIncident(incident);
@@ -999,10 +1026,12 @@ function IncidentsPage({ incidents, setIncidents }) {
       </Panel>
       <Panel title="Severity Mix" action="Today">
         <div className="stack-bars">
-          <span style={{ height: '72%' }} className="red" />
-          <span style={{ height: '58%' }} className="orange" />
-          <span style={{ height: '82%' }} className="amber" />
-          <span style={{ height: '44%' }} className="blue" />
+          {severityMix.map((item) => (
+            <span key={item.level} style={{ height: item.height }} className={item.className} title={`${item.level}: ${item.count}`} />
+          ))}
+        </div>
+        <div className="stack-labels">
+          {severityMix.map((item) => <b key={item.level}>{item.level}<small>{item.count}</small></b>)}
         </div>
       </Panel>
     </section>
@@ -1462,12 +1491,13 @@ function WeatherPage() {
   const rainAlerts = useMemo(() => {
     return weatherSeed
       .map((row) => {
-        const patternBoost = row.next.reduce((m, d) => {
+        const wetDays = row.next.filter((d) => {
           const cond = String(d.cond).toLowerCase();
-          const wet = cond.includes('rain') || cond.includes('storm') || cond.includes('shower');
-          return wet ? Math.max(m, 55) : m;
-        }, 0);
-        const chance = Math.min(95, Math.max(row.now.precip, patternBoost));
+          return cond.includes('rain') || cond.includes('storm') || cond.includes('shower');
+        }).length;
+        const stormBoost = row.next.some((d) => String(d.cond).toLowerCase().includes('storm')) ? 14 : 0;
+        const patternBoost = wetDays * 9;
+        const chance = Math.min(95, Math.max(8, row.now.precip + patternBoost + stormBoost));
         const impact = chance >= 60 ? 'High' : chance >= 35 ? 'Medium' : 'Low';
         const tone = chance >= 60 ? 'red' : chance >= 35 ? 'amber' : 'green';
         const note =
@@ -1622,7 +1652,7 @@ function TicketMapPanel({ locations, selectedLocation, setSelectedLocation, setA
     <Panel
       className={className}
       title="Ticket Monitoring Map"
-      action="View all tickets"
+      action="Open tickets map"
       onAction={setActive && active !== 'Tickets Map' ? () => setActive('Tickets Map') : undefined}
     >
       <div className="map-toolbar">
@@ -1797,8 +1827,7 @@ function MilestonesPanel({ milestones, setActive, active, className = '' }) {
     <Panel
       className={className}
       title="Milestone Tracker"
-      action="View all milestones"
-      onAction={setActive && active !== 'Milestones' ? () => setActive('Milestones') : undefined}
+      action={null}
     >
       <div className="milestones">
         {milestones.map((item) => (
@@ -1815,14 +1844,41 @@ function MilestonesPanel({ milestones, setActive, active, className = '' }) {
 }
 
 function MileagePanel({ totalMileage, className = '' }) {
+  const mileageSeries = useMemo(() => {
+    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    const base = Math.round(totalMileage / 7);
+    const multipliers = [0.91, 0.95, 0.98, 1.01, 1.04, 1.08, 1.11];
+    const values = days.map((day, index) => ({
+      day,
+      miles: Math.round(base * multipliers[index]),
+    }));
+    const max = Math.max(...values.map((item) => item.miles));
+    const min = Math.min(...values.map((item) => item.miles));
+    const range = Math.max(1, max - min);
+    const points = values.map((item, index) => {
+      const x = 24 + index * 98;
+      const y = 206 - (((item.miles - min) / range) * 126 + 16);
+      return `${x},${Math.round(y)}`;
+    });
+    const areaPoints = `24,222 ${points.join(' ')} 612,222`;
+    const change = values[0].miles ? (((values[6].miles - values[0].miles) / values[0].miles) * 100) : 0;
+    return { values, points, areaPoints, change };
+  }, [totalMileage]);
+
   return (
     <Panel className={className} title="Mileage Accumulation" action="7D">
       <div className="mileage-chart">
-        <div className="mileage-copy"><span>Total Mileage</span><strong>{(totalMileage / 1000000).toFixed(2)}M mi</strong><em>+7.6% vs last 7 days</em></div>
+        <div className="mileage-copy"><span>Total Mileage</span><strong>{(totalMileage / 1000000).toFixed(2)}M mi</strong><em>{mileageSeries.change >= 0 ? '+' : ''}{mileageSeries.change.toFixed(1)}% vs start of week</em></div>
         <svg viewBox="0 0 640 260" preserveAspectRatio="none" aria-hidden="true">
-          <path d="M0 212 C82 190 132 166 190 158 S298 136 360 116 456 122 520 94 594 62 640 42 L640 260 L0 260Z" />
-          <polyline points="0,212 84,184 190,158 278,140 360,116 456,122 520,94 594,62 640,42" />
-          {[0, 84, 190, 278, 360, 456, 520, 594, 640].map((x, index) => <circle key={x} cx={x} cy={[212, 184, 158, 140, 116, 122, 94, 62, 42][index]} r="5" />)}
+          <path d={mileageSeries.areaPoints} />
+          <polyline points={mileageSeries.points.join(' ')} />
+          {mileageSeries.values.map((item, index) => {
+            const [x, y] = mileageSeries.points[index].split(',').map(Number);
+            return <circle key={item.day} cx={x} cy={y} r="5" />;
+          })}
+          {mileageSeries.values.map((item, index) => (
+            <text key={item.day} x={24 + index * 98} y="246">{item.day}</text>
+          ))}
         </svg>
       </div>
     </Panel>
