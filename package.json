@@ -1,4 +1,5 @@
 {
+  "name": "bathroom-buddy",
   "scripts": {
     "dev": "vite --host 127.0.0.1 --port 4173",
     "build": "vite build",
