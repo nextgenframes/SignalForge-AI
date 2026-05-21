@@ -525,6 +525,19 @@ button {
 }
 
 @media (max-width: 979px) {
+  .playful-desktop.app-shell {
+    min-height: 100svh;
+    overflow-x: hidden;
+    overflow-y: auto;
+    padding-bottom: 18px;
+  }
+
+  .playful-desktop .map-stage {
+    position: relative;
+    inset: auto;
+    min-height: 0;
+  }
+
   .playful-desktop .topbar {
     top: 16px;
     left: 16px;
@@ -541,6 +554,10 @@ button {
     color: #0f766e;
     font-size: 20px;
     line-height: 1;
+  }
+
+  .playful-desktop .topbar-actions {
+    gap: 8px;
   }
 
   .playful-desktop .logo {
@@ -561,6 +578,9 @@ button {
     background: linear-gradient(135deg, #22c55e, #10b981);
     border-radius: 20px;
     box-shadow: 0 14px 26px rgba(16, 185, 129, 0.24);
+    min-height: 40px;
+    padding-inline: 12px;
+    font-size: 13px;
   }
 
   .playful-desktop .locate-button span:last-child {
@@ -637,8 +657,13 @@ button {
   }
 
   .playful-desktop .nearby-drawer {
+    position: relative;
+    left: auto;
+    right: auto;
+    bottom: auto;
+    margin: -22px 16px 0;
     max-height: 42vh;
-    min-height: 380px;
+    min-height: 0;
     padding: 12px 16px 0;
     color: #0f172a;
     background: rgba(255, 255, 255, 0.88);
@@ -699,8 +724,9 @@ button {
   }
 
   .playful-desktop .bathroom-row {
+    grid-template-columns: 42px minmax(0, 1fr) auto;
     margin-bottom: 8px;
-    padding: 12px;
+    padding: 10px;
     background: rgba(255, 255, 255, 0.78);
     border: 1px solid rgba(226, 232, 240, 0.9);
     border-radius: 20px;
@@ -733,16 +759,26 @@ button {
     background: rgba(236, 253, 245, 0.72);
     border: 1px solid rgba(153, 246, 228, 0.58);
     border-radius: 20px;
+    position: sticky;
+    bottom: max(8px, env(safe-area-inset-bottom));
   }
 
   .playful-desktop .bottom-nav button {
     color: #64748b;
+    min-height: 44px;
   }
 
   .playful-desktop .bottom-nav button.active {
     color: #059669;
     background: #d1fae5;
     border-radius: 14px;
+  }
+
+  .playful-desktop .nearby-list {
+    max-height: min(40svh, 420px);
+    padding-right: 4px;
+    padding-bottom: 12px;
+    overscroll-behavior: contain;
   }
 }
 
@@ -1068,14 +1104,30 @@ button {
     display: none;
   }
 
+  .playful-desktop .locate-button span:last-child {
+    display: inline;
+  }
+
   .floating-search {
     left: 16px;
     right: 16px;
     bottom: calc(44vh + 10px);
   }
 
+  .playful-desktop .floating-search {
+    top: 116px;
+    left: 24px;
+    right: 24px;
+    bottom: auto;
+  }
+
   .nearby-drawer {
     max-height: 48vh;
+    padding-inline: 16px;
+  }
+
+  .playful-desktop .nearby-drawer {
+    max-height: none;
     padding-inline: 16px;
   }
 }
