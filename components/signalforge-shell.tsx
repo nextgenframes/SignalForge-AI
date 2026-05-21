@@ -90,6 +90,8 @@ export function SignalForgeShell({ activePage = "Dashboard", landing = false }: 
   const [aiResult, setAiResult] = useState(selectedLead.summary);
   const [email, setEmail] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
+  const [agentLauncherOpen, setAgentLauncherOpen] = useState(false);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
 
   const filteredLeads = useMemo(() => {
     return leads.filter((lead) => {
@@ -170,7 +172,13 @@ export function SignalForgeShell({ activePage = "Dashboard", landing = false }: 
       <div className="relative flex min-h-screen">
         <Sidebar activePage={activePage} open={mobileNavOpen} setOpen={setMobileNavOpen} />
         <section className="flex min-w-0 flex-1 flex-col">
-          <Topbar activePage={activePage} setMobileNavOpen={setMobileNavOpen} />
+          <Topbar
+            activePage={activePage}
+            notificationsOpen={notificationsOpen}
+            setAgentLauncherOpen={setAgentLauncherOpen}
+            setMobileNavOpen={setMobileNavOpen}
+            setNotificationsOpen={setNotificationsOpen}
+          />
           {landing ? (
             <>
               <LandingHero />
@@ -183,6 +191,7 @@ export function SignalForgeShell({ activePage = "Dashboard", landing = false }: 
             </div>
           )}
         </section>
+        {agentLauncherOpen ? <AgentLauncher onClose={() => setAgentLauncherOpen(false)} /> : null}
       </div>
     </main>
   );
@@ -239,7 +248,19 @@ function Sidebar({ activePage, open, setOpen }: { activePage: string; open: bool
   );
 }
 
-function Topbar({ activePage, setMobileNavOpen }: { activePage: string; setMobileNavOpen: (open: boolean) => void }) {
+function Topbar({
+  activePage,
+  notificationsOpen,
+  setAgentLauncherOpen,
+  setMobileNavOpen,
+  setNotificationsOpen
+}: {
+  activePage: string;
+  notificationsOpen: boolean;
+  setAgentLauncherOpen: (open: boolean) => void;
+  setMobileNavOpen: (open: boolean) => void;
+  setNotificationsOpen: (open: boolean) => void;
+}) {
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-white/10 bg-background/76 px-4 backdrop-blur-xl lg:px-6">
       <Button className="lg:hidden" size="icon" variant="ghost" onClick={() => setMobileNavOpen(true)} aria-label="Open navigation">
@@ -253,14 +274,73 @@ function Topbar({ activePage, setMobileNavOpen }: { activePage: string; setMobil
         <Search className="size-4 text-muted-foreground" />
         <span className="text-sm text-muted-foreground">Search accounts, campaigns, personas</span>
       </div>
-      <Button size="icon" variant="outline" aria-label="Notifications">
+      <div className="relative">
+      <Button size="icon" variant="outline" aria-label="Notifications" onClick={() => setNotificationsOpen(!notificationsOpen)}>
         <Bell className="size-4" />
       </Button>
-      <Button>
+      {notificationsOpen ? (
+        <div className="glass-panel absolute right-0 top-12 z-50 w-72 rounded-lg p-3">
+          {[
+            "3 new ICP accounts detected",
+            "Healthcare AI campaign reply rate up 3.8%",
+            "Northstar BioSystems ready for outreach"
+          ].map((item) => (
+            <div key={item} className="rounded-md px-3 py-2 text-sm text-muted-foreground hover:bg-white/5">
+              {item}
+            </div>
+          ))}
+        </div>
+      ) : null}
+      </div>
+      <Button onClick={() => setAgentLauncherOpen(true)}>
         <Sparkles className="size-4" data-icon="inline-start" />
-        New agent
+        <span className="hidden sm:inline">New agent</span>
+        <span className="sm:hidden">New</span>
       </Button>
     </header>
+  );
+}
+
+function AgentLauncher({ onClose }: { onClose: () => void }) {
+  const agents = [
+    ["Lead Discovery Agent", "Find ICP-matched companies from GTM signals.", "/lead-explorer", Radar],
+    ["Company Intelligence Agent", "Summarize business model, pain, growth, hiring, and GTM opportunities.", "/company-intelligence", Bot],
+    ["Outreach Generator", "Create email, LinkedIn DM, follow-ups, and call opener.", "/outreach-generator", Mail],
+    ["Lead Scoring Engine", "Score accounts and recommend next action.", "/dashboard", Flame]
+  ];
+
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-end bg-black/56 p-4 backdrop-blur-sm sm:place-items-center" role="dialog" aria-modal="true" aria-label="New agent">
+      <div className="glass-panel w-full max-w-2xl rounded-lg p-4">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <h2 className="text-xl font-bold">Launch new AI agent</h2>
+            <p className="mt-1 text-sm text-muted-foreground">Choose workflow. Agent opens with live demo inputs ready.</p>
+          </div>
+          <Button size="icon" variant="ghost" onClick={onClose} aria-label="Close agent launcher">
+            <X className="size-4" />
+          </Button>
+        </div>
+        <div className="mt-4 grid gap-3 md:grid-cols-2">
+          {agents.map(([title, body, href, Icon]) => (
+            <a
+              key={title as string}
+              href={href as string}
+              className="rounded-lg border border-white/10 bg-white/5 p-4 transition-colors hover:border-primary/40 hover:bg-primary/8"
+              onClick={onClose}
+            >
+              <div className="flex items-center gap-3">
+                <div className="grid size-10 place-items-center rounded-md bg-primary/12">
+                  <Icon className="size-4 text-primary" />
+                </div>
+                <p className="font-semibold">{title as string}</p>
+              </div>
+              <p className="mt-3 text-sm leading-6 text-muted-foreground">{body as string}</p>
+            </a>
+          ))}
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -277,7 +357,9 @@ function LandingHero() {
             <a href="/dashboard" className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-primary px-5 text-sm font-semibold text-primary-foreground shadow-[0_0_32px_rgba(88,246,255,0.24)] transition-colors hover:bg-primary/90">
               Open dashboard <ChevronRight className="size-4" />
             </a>
-            <Button variant="outline">View live pipeline</Button>
+            <a href="/analytics" className="inline-flex h-11 items-center justify-center rounded-md border border-border bg-white/4 px-5 text-sm font-semibold text-foreground transition-colors hover:bg-white/8">
+              View live pipeline
+            </a>
           </div>
         </div>
         <div className="glass-panel overflow-hidden rounded-lg p-5">
@@ -391,7 +473,12 @@ function LandingSections() {
             </CardHeader>
             <CardContent>
               <p className="text-3xl font-bold">{price}</p>
-              <Button className="mt-5 w-full">{plan === "Enterprise" ? "Talk to sales" : "Start now"}</Button>
+              <a
+                href={plan === "Enterprise" ? "/settings" : "/lead-explorer"}
+                className="mt-5 inline-flex h-10 w-full items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow-[0_0_32px_rgba(88,246,255,0.24)] transition-colors hover:bg-primary/90"
+              >
+                {plan === "Enterprise" ? "Talk to sales" : "Start now"}
+              </a>
             </CardContent>
           </Card>
         ))}
@@ -484,6 +571,22 @@ function LeadExplorer(props: {
   savedIds: Set<string>;
   toggleSaved: (id: string) => void;
 }) {
+  const [advancedFiltersOpen, setAdvancedFiltersOpen] = useState(false);
+
+  function exportVisibleLeads() {
+    const headers = ["Company", "Website", "Segment", "Score", "Intent", "Status"];
+    const rows = props.leads.map((lead) => [lead.company, lead.domain, lead.segment, lead.score, lead.intent, lead.status]);
+    const csv = [headers, ...rows]
+      .map((row) => row.map((cell) => `"${String(cell).replaceAll('"', '""')}"`).join(","))
+      .join("\n");
+    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "signalforge-leads.csv";
+    link.click();
+    URL.revokeObjectURL(url);
+  }
+
   return (
     <div className="flex flex-col gap-4">
       <LeadDiscoveryAgent />
@@ -509,15 +612,22 @@ function LeadExplorer(props: {
               </option>
             ))}
           </select>
-          <Button variant="outline">
+          <Button variant="outline" onClick={() => setAdvancedFiltersOpen(!advancedFiltersOpen)}>
             <Filter className="size-4" data-icon="inline-start" />
-            Filters
+            {advancedFiltersOpen ? "Hide filters" : "Filters"}
           </Button>
-          <Button>
+          <Button onClick={exportVisibleLeads}>
             <Download className="size-4" data-icon="inline-start" />
             Export
           </Button>
         </CardContent>
+        {advancedFiltersOpen ? (
+          <CardContent className="grid gap-3 border-t border-white/10 pt-4 md:grid-cols-3">
+            <MetricLine label="Active segment" value={props.segment} />
+            <MetricLine label="Visible accounts" value={props.leads.length.toString()} />
+            <MetricLine label="Min AI score" value="75+" />
+          </CardContent>
+        ) : null}
       </Card>
       <LeadTable {...props} />
     </div>
