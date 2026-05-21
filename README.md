@@ -1,22 +1,6 @@
-# Bathroom Buddy
+# SignalForge AI
 
-Bathroom Buddy is web app for finding public bathrooms around Bay Area.
-
-## Features
-
-- Interactive map with bathroom markers
-- Search by city, neighborhood, place, or bathroom name
-- Locate me button for nearby bathrooms
-- Favorites tab for saved bathrooms
-- Ratings, access type, opening hours, and notes
-- Playful desktop theme and dark mobile-friendly map
-
-## Tech
-
-- React
-- Vite
-- MapLibre GL
-- CSS
+Modern AI-powered GTM SaaS app built with Next.js App Router, TypeScript, Tailwind CSS, shadcn-style UI primitives, Supabase, and OpenAI.
 
 ## Run
 
@@ -25,8 +9,32 @@ npm install
 npm run dev
 ```
 
-## Build
+Open `http://127.0.0.1:3000`.
+
+## Environment
+
+Copy `.env.example` to `.env.local` and set:
 
 ```bash
-npm run build
+NEXT_PUBLIC_SUPABASE_URL=
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=
+OPENAI_API_KEY=
+OPENAI_MODEL=gpt-5.4-mini
 ```
+
+The AI route falls back to demo output when `OPENAI_API_KEY` is not set.
+
+## App Surface
+
+- Landing page
+- Dashboard
+- Lead Explorer
+- Company Intelligence
+- Outreach Generator
+- Campaign Manager
+- Analytics
+- Settings
+
+## Backend
+
+Supabase schema lives in `supabase/migrations/20260521084730_signalforge_ai_schema.sql` and includes RLS-ready tables for profiles, leads, lead lists, list items, campaigns, and activity events.

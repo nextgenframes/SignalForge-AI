@@ -1,6 +1,7 @@
 node_modules/
 .npm-cache/
 dist/
+.next/
 .env
 .env.local
 .vercel/
@@ -11,3 +12,8 @@ vendor/mapcn/
 *.log
 coverage/
 .vercel
+supabase/.temp/
+signalforge-*.png
+BathroomBuddy/
+BathroomBuddyExpo/
+src/
