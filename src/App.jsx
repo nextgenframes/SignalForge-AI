@@ -3,7 +3,7 @@ import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import './styles.css';
 
-const bathroomsSeed = [
+const coreBathrooms = [
   {
     id: '1',
     name: 'Main Library Restroom',
@@ -412,6 +412,98 @@ const bathroomsSeed = [
   },
 ];
 
+const generatedBathroomTemplates = [
+  ['McDonalds', 'Customer only', 'Fast food restroom. Ask staff if keypad locked.', 'Daily 5:00 AM-11:00 PM', 3, false, true],
+  ['Burger King', 'Customer only', 'Fast food stop with indoor restroom.', 'Daily 6:00 AM-10:00 PM', 3, false, true],
+  ['Taco Bell', 'Customer only', 'Restroom near dining area.', 'Daily 7:00 AM-11:00 PM', 3, false, true],
+  ['KFC', 'Customer only', 'Counter-service restroom.', 'Daily 10:00 AM-10:00 PM', 3, false, false],
+  ['Wendys', 'Customer only', 'Usually open during meal hours.', 'Daily 10:00 AM-10:00 PM', 3, false, true],
+  ['Subway', 'Customer only', 'Small restroom, code sometimes needed.', 'Daily 7:00 AM-9:00 PM', 3, false, false],
+  ['Chipotle', 'Customer only', 'Restroom inside dining room.', 'Daily 10:45 AM-10:00 PM', 4, false, true],
+  ['Panda Express', 'Customer only', 'Quick stop inside restaurant.', 'Daily 10:00 AM-9:30 PM', 3, false, true],
+  ['Target', 'Public', 'Store restroom near front or fitting rooms.', 'Daily 8:00 AM-10:00 PM', 4, true, true],
+  ['Walmart', 'Public', 'Large store restroom near front.', 'Daily 6:00 AM-11:00 PM', 3, true, true],
+  ['Costco', 'Public', 'Large restroom near food court.', 'Mon-Fri 10:00 AM-8:30 PM · Sat-Sun 9:30 AM-7:00 PM', 4, true, true],
+  ['Safeway', 'Public', 'Grocery restroom in back half of store.', 'Daily 6:00 AM-11:00 PM', 3, false, true],
+  ['Trader Joes', 'Customer only', 'Ask crew if locked.', 'Daily 8:00 AM-9:00 PM', 3, false, true],
+  ['Whole Foods', 'Public', 'Market restroom near cafe or prepared foods.', 'Daily 8:00 AM-9:00 PM', 4, true, true],
+  ['Westfield Mall', 'Public', 'Mall restroom near food court.', 'Daily 10:00 AM-8:00 PM', 4, true, true],
+  ['BART Station', 'Paid', 'Station restroom. Availability can vary.', 'Daily 6:00 AM-9:00 PM', 2, false, true],
+  ['Starbucks', 'Code required', 'Ask cashier for code.', 'Daily 5:30 AM-7:00 PM', 3, false, true],
+  ['In N Out Burger', 'Customer only', 'Dining room restroom.', 'Daily 10:30 AM-1:00 AM', 4, false, true],
+  ['Shake Shack', 'Customer only', 'Modern fast food restroom.', 'Daily 11:00 AM-10:00 PM', 4, false, true],
+  ['Macys Mall Restroom', 'Public', 'Department store restroom upstairs.', 'Daily 10:00 AM-8:00 PM', 4, true, true],
+];
+
+const generatedBathroomSeeds = [
+  ['Mission District', 'San Francisco, CA', 37.7599, -122.4148],
+  ['SoMa', 'San Francisco, CA', 37.7785, -122.4056],
+  ['Civic Center', 'San Francisco, CA', 37.7793, -122.4175],
+  ['Inner Sunset', 'San Francisco, CA', 37.7636, -122.4662],
+  ['Richmond District', 'San Francisco, CA', 37.7808, -122.4827],
+  ['Stonestown', 'San Francisco, CA', 37.7287, -122.4762],
+  ['Embarcadero', 'San Francisco, CA', 37.7952, -122.3939],
+  ['Marina', 'San Francisco, CA', 37.803, -122.4368],
+  ['Daly City', 'CA', 37.6879, -122.4702],
+  ['South San Francisco', 'CA', 37.6547, -122.4077],
+  ['San Bruno', 'CA', 37.6305, -122.4111],
+  ['Millbrae', 'CA', 37.5985, -122.3868],
+  ['Burlingame', 'CA', 37.5779, -122.3481],
+  ['San Mateo', 'CA', 37.563, -122.3255],
+  ['Redwood City', 'CA', 37.4852, -122.2364],
+  ['Palo Alto', 'CA', 37.4419, -122.143],
+  ['Mountain View', 'CA', 37.3861, -122.0839],
+  ['Sunnyvale', 'CA', 37.3688, -122.0363],
+  ['Santa Clara', 'CA', 37.3541, -121.9552],
+  ['Downtown San Jose', 'CA', 37.3382, -121.8863],
+  ['Cupertino', 'CA', 37.3229, -122.0322],
+  ['Fremont', 'CA', 37.5483, -121.9886],
+  ['Union City', 'CA', 37.5934, -122.0438],
+  ['Hayward', 'CA', 37.6688, -122.0808],
+  ['San Leandro', 'CA', 37.7249, -122.1561],
+  ['Downtown Oakland', 'CA', 37.8044, -122.2711],
+  ['Jack London Square', 'Oakland, CA', 37.7956, -122.277],
+  ['Temescal', 'Oakland, CA', 37.837, -122.262],
+  ['Rockridge', 'Oakland, CA', 37.8446, -122.2514],
+  ['Berkeley', 'CA', 37.8715, -122.273],
+  ['El Cerrito', 'CA', 37.9158, -122.3119],
+  ['Richmond', 'CA', 37.9358, -122.3477],
+  ['Walnut Creek', 'CA', 37.9101, -122.0652],
+  ['Pleasant Hill', 'CA', 37.9479, -122.0608],
+  ['Concord', 'CA', 37.978, -122.0311],
+  ['Martinez', 'CA', 38.0194, -122.1341],
+  ['Vallejo', 'CA', 38.1041, -122.2566],
+  ['Fairfield', 'CA', 38.2494, -122.039],
+  ['Livermore', 'CA', 37.6819, -121.768],
+  ['Dublin', 'CA', 37.7021, -121.9358],
+];
+
+const generatedBathrooms = generatedBathroomSeeds.flatMap((seed, seedIndex) =>
+  generatedBathroomTemplates.slice(0, seedIndex < 20 ? 3 : 2).map((template, templateIndex) => {
+    const [name, accessType, notes, openHours, cleanlinessRating, hasChangingTable, isWheelchairAccessible] = template;
+    const [district, cityState, latitude, longitude] = seed;
+    const offsetLat = latitude + (templateIndex - 1) * 0.0064 + (seedIndex % 3) * 0.0011;
+    const offsetLng = longitude + (templateIndex - 1) * 0.0072 - (seedIndex % 4) * 0.0013;
+
+    return {
+      id: String(30 + seedIndex * 3 + templateIndex),
+      name: `${name} ${district}`,
+      address: `${district}, ${cityState}`,
+      latitude: Number(offsetLat.toFixed(4)),
+      longitude: Number(offsetLng.toFixed(4)),
+      cleanlinessRating,
+      accessType,
+      notes,
+      hasChangingTable,
+      isWheelchairAccessible,
+      isFavorite: false,
+      openHours,
+    };
+  }),
+);
+
+const bathroomsSeed = [...coreBathrooms, ...generatedBathrooms];
+
 const baseSearchPlaces = [
   { label: 'San Francisco', latitude: 37.7749, longitude: -122.4194 },
   { label: 'Oakland', latitude: 37.8044, longitude: -122.2711 },
@@ -642,11 +734,12 @@ export default function App() {
   const [searchCenter, setSearchCenter] = useState(null);
   const [userLocation, setUserLocation] = useState(null);
   const [searchText, setSearchText] = useState('');
-  const [notice, setNotice] = useState('29 bathrooms across Bay Area');
+  const defaultNotice = `${bathroomsSeed.length} bathrooms across Bay Area`;
+  const [notice, setNotice] = useState(defaultNotice);
   const [activeView, setActiveView] = useState('all');
   const [desktopTheme, setDesktopTheme] = useState('playful');
-  const isDesktop = useDesktop();
-  const isPlayfulDesktop = isDesktop && desktopTheme === 'playful';
+  useDesktop();
+  const isPlayfulTheme = desktopTheme === 'playful';
 
   const visibleBathrooms = useMemo(() => {
     const source = activeView === 'favorites' ? bathrooms.filter((bathroom) => bathroom.isFavorite) : bathrooms;
@@ -732,11 +825,11 @@ export default function App() {
   function clearMapFocus() {
     setSearchCenter(null);
     setUserLocation(null);
-    setNotice('29 bathrooms across Bay Area');
+    setNotice(defaultNotice);
   }
 
   return (
-    <main className={`app-shell ${isPlayfulDesktop ? 'playful-desktop' : ''}`}>
+    <main className={`app-shell ${isPlayfulTheme ? 'playful-desktop' : ''}`}>
       <section className="map-stage">
         <header className="topbar">
           <div className="brand">
@@ -746,7 +839,7 @@ export default function App() {
 
           <div className="topbar-actions">
             <button className="round-action theme-action" type="button" onClick={() => setDesktopTheme((current) => (current === 'playful' ? 'dark' : 'playful'))} aria-label="Toggle dark mode">
-              <span>{isPlayfulDesktop ? '☾' : '☼'}</span>
+              <span>{isPlayfulTheme ? '☾' : '☼'}</span>
             </button>
             <button className="locate-button" type="button" onClick={locateUser} aria-label="Locate me">
               <span>◎</span>
@@ -760,7 +853,7 @@ export default function App() {
           selectedBathroom={selectedVisibleBathroom}
           searchCenter={searchCenter}
           userLocation={userLocation}
-          mapTheme={isPlayfulDesktop ? 'playful' : 'dark'}
+          mapTheme={isPlayfulTheme ? 'playful' : 'dark'}
           onSelect={setSelectedBathroom}
         />
 
