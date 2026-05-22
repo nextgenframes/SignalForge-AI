@@ -1,6 +1,6 @@
-# SignalForge AI
+# Smart Dash AI Agent
 
-Modern AI-powered GTM SaaS app built with Next.js App Router, TypeScript, Tailwind CSS, shadcn-style UI primitives, Supabase, and OpenAI.
+AI-powered delivery operations command center built with Next.js App Router, TypeScript, Tailwind CSS, shadcn-style UI primitives, Supabase, and OpenAI.
 
 ## Run
 
@@ -26,15 +26,22 @@ The AI route falls back to demo output when `OPENAI_API_KEY` is not set.
 
 ## App Surface
 
-- Landing page
 - Dashboard
-- Lead Explorer
-- Company Intelligence
-- Outreach Generator
-- Campaign Manager
+- Multi-Agent Supervisor
+- Executive Ops
+- SmartScale Operations
+- SmartScale Fraud
+- Merchant Intelligence
+- Dasher Operations
+- Simulation Lab
+- Incident Replay
+- Voice Ops
+- Dispatch Optimizer
+- Fleet Health
+- Customer Recovery
 - Analytics
 - Settings
 
 ## Backend
 
-Supabase schema lives in `supabase/migrations/20260521084730_signalforge_ai_schema.sql` and includes RLS-ready tables for profiles, leads, lead lists, list items, campaigns, and activity events.
+Supabase schema lives in `supabase/migrations/20260521084730_signalforge_ai_schema.sql` and `supabase/migrations/20260521161234_add_smartscale_support.sql`, with additional SmartScale store, device, check, and issue support in `supabase-schema.sql`.
