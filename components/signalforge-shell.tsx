@@ -111,10 +111,14 @@ import {
   type SmartScaleIssueType,
   type SmartScaleSeverity
 } from "@/lib/data";
+import { getAllowedPages, getAppBrand, getAppMode, type AppMode } from "@/lib/app-mode";
 import { cn } from "@/lib/utils";
 import type { Lead } from "@/types";
 
 const navIcons = [LayoutDashboard, Users, BarChart3, Scale, CircleAlert, Building2, Truck, Rocket, Route, Headphones, Workflow, ShieldCheck, MessageSquare, Search, Bot, Mail, Target, BarChart3, Settings];
+const appMode = getAppMode();
+const allowedPages = getAllowedPages(appMode);
+const appBrand = getAppBrand(appMode);
 
 type DiscoveredLead = {
   companyName: string;
@@ -161,7 +165,13 @@ function formatIssueLabel(value: string) {
     .join(" ");
 }
 
+function resolveActivePage(activePage: string) {
+  if ((allowedPages as string[]).includes(activePage)) return activePage;
+  return appMode === "signalforge" ? "Dashboard" : "Multi-Agent Supervisor";
+}
+
 export function SignalForgeShell({ activePage = "Dashboard", landing = false }: ShellProps) {
+  const resolvedActivePage = resolveActivePage(activePage);
   const [query, setQuery] = useState("");
   const [segment, setSegment] = useState("All");
   const [selectedLead, setSelectedLead] = useState<Lead>(leads[0]);
@@ -243,7 +253,7 @@ export function SignalForgeShell({ activePage = "Dashboard", landing = false }: 
     });
   }
 
-  const mainContent = activePage === "Lead Explorer" ? (
+  const mainContent = resolvedActivePage === "Lead Explorer" ? (
     <LeadExplorer
       query={query}
       setQuery={setQuery}
@@ -256,7 +266,7 @@ export function SignalForgeShell({ activePage = "Dashboard", landing = false }: 
       savedIds={savedIds}
       toggleSaved={toggleSaved}
     />
-  ) : activePage === "SmartScale Operations" ? (
+  ) : resolvedActivePage === "SmartScale Operations" ? (
     <SmartScaleOperations
       checks={visibleSmartScaleChecks}
       storeFilter={smartscaleStore}
@@ -274,37 +284,37 @@ export function SignalForgeShell({ activePage = "Dashboard", landing = false }: 
       dateRange={smartscaleDateRange}
       setDateRange={setSmartscaleDateRange}
     />
-  ) : activePage === "SmartScale Fraud" ? (
+  ) : resolvedActivePage === "SmartScale Fraud" ? (
     <SmartScaleFraudDashboard />
-  ) : activePage === "Multi-Agent Supervisor" ? (
+  ) : resolvedActivePage === "Multi-Agent Supervisor" ? (
     <MultiAgentSupervisorDashboard />
-  ) : activePage === "Executive Ops" ? (
+  ) : resolvedActivePage === "Executive Ops" ? (
     <ExecutiveOpsDashboard />
-  ) : activePage === "Merchant Intelligence" ? (
+  ) : resolvedActivePage === "Merchant Intelligence" ? (
     <MerchantIntelligenceDashboard />
-  ) : activePage === "Dasher Operations" ? (
+  ) : resolvedActivePage === "Dasher Operations" ? (
     <DasherOperationsDashboard />
-  ) : activePage === "Simulation Lab" ? (
+  ) : resolvedActivePage === "Simulation Lab" ? (
     <SimulationLabDashboard />
-  ) : activePage === "Incident Replay" ? (
+  ) : resolvedActivePage === "Incident Replay" ? (
     <IncidentReplayDashboard />
-  ) : activePage === "Voice Ops" ? (
+  ) : resolvedActivePage === "Voice Ops" ? (
     <VoiceOpsDashboard />
-  ) : activePage === "Dispatch Optimizer" ? (
+  ) : resolvedActivePage === "Dispatch Optimizer" ? (
     <DispatchOptimizerDashboard />
-  ) : activePage === "Fleet Health" ? (
+  ) : resolvedActivePage === "Fleet Health" ? (
     <FleetHealthDashboard />
-  ) : activePage === "Customer Recovery" ? (
+  ) : resolvedActivePage === "Customer Recovery" ? (
     <CustomerRecoveryDashboard />
-  ) : activePage === "Company Intelligence" ? (
+  ) : resolvedActivePage === "Company Intelligence" ? (
     <CompanyIntelligence selectedLead={selectedLead} aiResult={aiResult} runGeneration={runGeneration} isGenerating={isGenerating} />
-  ) : activePage === "Outreach" ? (
+  ) : resolvedActivePage === "Outreach" ? (
     <OutreachGenerator selectedLead={selectedLead} email={email} setEmail={setEmail} runGeneration={runGeneration} isGenerating={isGenerating} />
-  ) : activePage === "Campaigns" ? (
+  ) : resolvedActivePage === "Campaigns" ? (
     <CampaignManager />
-  ) : activePage === "Analytics" ? (
+  ) : resolvedActivePage === "Analytics" ? (
     <Analytics />
-  ) : activePage === "Settings" ? (
+  ) : resolvedActivePage === "Settings" ? (
     <SettingsPanel />
   ) : (
     <DashboardOverview
@@ -325,10 +335,10 @@ export function SignalForgeShell({ activePage = "Dashboard", landing = false }: 
     <main className="min-h-screen overflow-hidden bg-background text-foreground">
       <div className="grid-fade pointer-events-none fixed inset-0 opacity-60" />
       <div className="relative flex min-h-screen">
-        <Sidebar activePage={activePage} open={mobileNavOpen} setOpen={setMobileNavOpen} />
+        <Sidebar activePage={resolvedActivePage} open={mobileNavOpen} setOpen={setMobileNavOpen} />
         <section className="flex min-w-0 flex-1 flex-col">
           <Topbar
-            activePage={activePage}
+            activePage={resolvedActivePage}
             notificationsOpen={notificationsOpen}
             setAgentLauncherOpen={setAgentLauncherOpen}
             setMobileNavOpen={setMobileNavOpen}
@@ -342,10 +352,12 @@ export function SignalForgeShell({ activePage = "Dashboard", landing = false }: 
           ) : (
             <div className="grid flex-1 gap-4 p-4 lg:grid-cols-[minmax(0,1fr)_340px] lg:p-6">
               <div className="min-w-0">{mainContent}</div>
-              {activePage === "SmartScale Operations" ? (
+              {resolvedActivePage === "SmartScale Operations" ? (
                 <SmartScaleRail checks={visibleSmartScaleChecks} />
-              ) : (
+              ) : appMode === "signalforge" ? (
                 <RightRail selectedLead={selectedLead} savedIds={savedIds} runGeneration={runGeneration} isGenerating={isGenerating} />
+              ) : (
+                <SmartDashRail />
               )}
             </div>
           )}
@@ -370,8 +382,8 @@ function Sidebar({ activePage, open, setOpen }: { activePage: string; open: bool
             <Sparkles className="size-5 text-background" />
           </div>
           <div>
-            <p className="text-sm font-semibold text-muted-foreground">Smart Dash</p>
-            <h1 className="text-xl font-bold tracking-tight">AI Agent</h1>
+            <p className="text-sm font-semibold text-muted-foreground">{appBrand.eyebrow}</p>
+            <h1 className="text-xl font-bold tracking-tight">{appBrand.title}</h1>
           </div>
         </a>
         <Button className="lg:hidden" size="icon" variant="ghost" onClick={() => setOpen(false)} aria-label="Close navigation">
@@ -379,8 +391,8 @@ function Sidebar({ activePage, open, setOpen }: { activePage: string; open: bool
         </Button>
       </div>
       <nav className="mt-8 flex flex-col gap-1">
-        {navItems.map((item, index) => {
-          const Icon = navIcons[index];
+        {navItems.filter((item) => (allowedPages as string[]).includes(item)).map((item) => {
+          const Icon = navIcons[navItems.indexOf(item)];
           return (
             <a
               key={item}
@@ -399,9 +411,9 @@ function Sidebar({ activePage, open, setOpen }: { activePage: string; open: bool
       <div className="mt-auto rounded-lg border border-white/10 bg-white/5 p-4">
         <div className="flex items-center gap-2 text-sm font-semibold">
           <Lock className="size-4 text-accent" />
-          Supabase Auth
+          {appBrand.footerTitle}
         </div>
-        <p className="mt-2 text-xs leading-5 text-muted-foreground">Cookie-backed sessions, RLS-ready saved leads, and realtime CRM updates.</p>
+        <p className="mt-2 text-xs leading-5 text-muted-foreground">{appBrand.footerBody}</p>
       </div>
     </aside>
   );
@@ -420,18 +432,31 @@ function Topbar({
   setMobileNavOpen: (open: boolean) => void;
   setNotificationsOpen: (open: boolean) => void;
 }) {
+  const notifications =
+    appMode === "signalforge"
+      ? [
+          "3 new ICP accounts detected",
+          "Healthcare AI campaign reply rate up 3.8%",
+          "Northstar BioSystems ready for outreach"
+        ]
+      : [
+          "R305 maintenance escalation active",
+          "BurgerCraft Sunset SmartScale abuse alert triggered",
+          "Austin congestion risk trending up"
+        ];
+
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-white/10 bg-background/76 px-4 backdrop-blur-xl lg:px-6">
       <Button className="lg:hidden" size="icon" variant="ghost" onClick={() => setMobileNavOpen(true)} aria-label="Open navigation">
         <Menu className="size-4" />
       </Button>
       <div className="min-w-0">
-        <p className="hidden text-xs text-muted-foreground sm:block">Revenue command center</p>
+        <p className="hidden text-xs text-muted-foreground sm:block">{appBrand.subtitle}</p>
         <h2 className="truncate text-lg font-semibold">{activePage}</h2>
       </div>
       <div className="ml-auto hidden min-w-72 items-center gap-2 rounded-md border border-white/10 bg-white/5 px-3 py-2 md:flex">
         <Search className="size-4 text-muted-foreground" />
-        <span className="text-sm text-muted-foreground">Search accounts, campaigns, personas</span>
+        <span className="text-sm text-muted-foreground">{appBrand.searchPlaceholder}</span>
       </div>
       <div className="relative">
       <Button size="icon" variant="outline" aria-label="Notifications" onClick={() => setNotificationsOpen(!notificationsOpen)}>
@@ -439,11 +464,7 @@ function Topbar({
       </Button>
       {notificationsOpen ? (
         <div className="glass-panel absolute right-0 top-12 z-50 w-72 rounded-lg p-3">
-          {[
-            "3 new ICP accounts detected",
-            "Healthcare AI campaign reply rate up 3.8%",
-            "Northstar BioSystems ready for outreach"
-          ].map((item) => (
+          {notifications.map((item) => (
             <div key={item} className="rounded-md px-3 py-2 text-sm text-muted-foreground hover:bg-white/5">
               {item}
             </div>
@@ -480,6 +501,33 @@ function AgentLauncher({ onClose }: { onClose: () => void }) {
     ["Predictive Incident Prevention Agent", "Predict delivery failures, ETA drift, and recovery risk before incidents occur.", "/dashboard", Siren],
     ["Remote Assistance AI Copilot", "Summarize robot incidents, flag hazards, and suggest safe operator recovery commands.", "/dashboard", Headphones]
   ];
+  const visibleAgents =
+    appMode === "signalforge"
+      ? agents.filter(([title]) =>
+          [
+            "Lead Discovery Agent",
+            "Company Intelligence Agent",
+            "Outreach Generator",
+            "Lead Scoring Engine"
+          ].includes(title as string)
+        )
+      : agents.filter(([title]) =>
+          [
+            "Multi-Agent Supervisor",
+            "Executive Operations Dashboard",
+            "SmartScale Fraud and Abuse Detection",
+            "Merchant Performance Intelligence",
+            "Dasher Operations AI Agent",
+            "Simulation Engine",
+            "Incident Replay System",
+            "Voice Operations Assistant",
+            "Dispatch Optimization System",
+            "Fleet Health Prediction System",
+            "Customer Recovery AI Agent",
+            "Predictive Incident Prevention Agent",
+            "Remote Assistance AI Copilot"
+          ].includes(title as string)
+        );
 
   return (
     <div className="fixed inset-0 z-50 grid place-items-end bg-black/56 p-4 backdrop-blur-sm sm:place-items-center" role="dialog" aria-modal="true" aria-label="New agent">
@@ -494,7 +542,7 @@ function AgentLauncher({ onClose }: { onClose: () => void }) {
           </Button>
         </div>
         <div className="mt-4 grid gap-3 md:grid-cols-2">
-          {agents.map(([title, body, href, Icon]) => (
+          {visibleAgents.map(([title, body, href, Icon]) => (
             <a
               key={title as string}
               href={href as string}
@@ -683,10 +731,28 @@ function DashboardOverview(props: {
   aiResult: string;
   isGenerating: boolean;
 }) {
+  if (appMode === "signalforge") {
+    return <SignalForgeDashboardOverview {...props} />;
+  }
+
+  return <SmartDashDashboardOverview />;
+}
+
+function SignalForgeDashboardOverview(props: {
+  query: string;
+  setQuery: (query: string) => void;
+  leads: Lead[];
+  selectedLead: Lead;
+  setSelectedLead: (lead: Lead) => void;
+  savedIds: Set<string>;
+  toggleSaved: (id: string) => void;
+  runGeneration: (task: "summary" | "outreach") => void;
+  aiResult: string;
+  isGenerating: boolean;
+}) {
   return (
     <div className="flex flex-col gap-4">
       <MetricGrid />
-      <PredictiveIncidentOverview />
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(340px,0.65fr)]">
         <LeadTable {...props} />
         <AgentPanel selectedLead={props.selectedLead} aiResult={props.aiResult} runGeneration={props.runGeneration} isGenerating={props.isGenerating} />
@@ -695,10 +761,31 @@ function DashboardOverview(props: {
         <CampaignManager compact />
         <Analytics compact />
       </div>
-      <RemoteAssistanceCopilot />
       <div className="grid gap-4 xl:grid-cols-[1fr_1fr]">
         <LeadScoringEngine selectedLead={props.selectedLead} />
         <AutomationGrid compact />
+      </div>
+    </div>
+  );
+}
+
+function SmartDashDashboardOverview() {
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <RiskMetric label="Live incidents" value={remoteAssistanceIncidents.length.toString()} caption="Active robot or ops cases" icon={Siren} />
+        <RiskMetric label="SmartScale checks" value={smartscaleChecks.length.toString()} caption="Monitored verification events" icon={Scale} />
+        <RiskMetric label="High-risk stores" value={merchantPerformanceRecords.filter((record) => record.riskLevel === "high" || record.riskLevel === "critical").length.toString()} caption="Need coordinated response" icon={Building2} />
+        <RiskMetric label="Fleet alerts" value={fleetHealthPredictions.filter((item) => item.maintenanceUrgency === "high" || item.maintenanceUrgency === "critical").length.toString()} caption="Predicted maintenance interventions" icon={ShieldCheck} />
+      </div>
+      <PredictiveIncidentOverview />
+      <div className="grid gap-4 xl:grid-cols-[1fr_1fr]">
+        <RemoteAssistanceCopilot />
+        <MultiAgentSupervisorSummaryCard />
+      </div>
+      <div className="grid gap-4 xl:grid-cols-[1fr_1fr]">
+        <OpsLaunchpadCard />
+        <ExecutiveHighlightsCard />
       </div>
     </div>
   );
@@ -2963,6 +3050,80 @@ function ExecutiveForecastPanel({ snapshot }: { snapshot: ExecutiveOperationsSna
   );
 }
 
+function MultiAgentSupervisorSummaryCard() {
+  const snapshot = multiAgentSupervisorSnapshot;
+  return (
+    <Card className="glass-panel">
+      <CardHeader>
+        <CardTitle>Supervisor snapshot</CardTitle>
+        <CardDescription>Cross-agent coordination status across fleet, SmartScale, dispatch, merchant, customer, and maintenance work.</CardDescription>
+      </CardHeader>
+      <CardContent className="grid gap-3">
+        <div className="rounded-lg border border-white/10 bg-background/60 p-4 text-sm leading-6 text-muted-foreground">
+          {snapshot.supervisorSummary}
+        </div>
+        {snapshot.activeAgents.slice(0, 4).map((agent) => (
+          <div key={agent.id} className="rounded-lg border border-white/10 bg-background/60 p-4">
+            <div className="flex items-center justify-between gap-3">
+              <p className="font-semibold">{agent.name}</p>
+              <Badge variant={agent.status === "escalated" ? "accent" : "secondary"}>{agent.confidenceScore}%</Badge>
+            </div>
+            <p className="mt-2 text-sm leading-6 text-muted-foreground">{agent.currentTask}</p>
+          </div>
+        ))}
+      </CardContent>
+    </Card>
+  );
+}
+
+function OpsLaunchpadCard() {
+  const launchpad = [
+    ["SmartScale Operations", "/smartscale-operations"],
+    ["SmartScale Fraud", "/smartscale-fraud"],
+    ["Merchant Intelligence", "/merchant-intelligence"],
+    ["Dispatch Optimizer", "/dispatch-optimizer"],
+    ["Fleet Health", "/fleet-health"],
+    ["Customer Recovery", "/customer-recovery"]
+  ];
+
+  return (
+    <Card className="glass-panel">
+      <CardHeader>
+        <CardTitle>Operations launchpad</CardTitle>
+        <CardDescription>Direct jump points for the highest-traffic operator surfaces.</CardDescription>
+      </CardHeader>
+      <CardContent className="grid gap-3 sm:grid-cols-2">
+        {launchpad.map(([label, href]) => (
+          <a key={href} href={href} className="rounded-lg border border-white/10 bg-white/5 p-4 text-sm font-medium transition-colors hover:bg-white/8">
+            {label}
+          </a>
+        ))}
+      </CardContent>
+    </Card>
+  );
+}
+
+function ExecutiveHighlightsCard() {
+  const snapshot = executiveOperationsSnapshot;
+  return (
+    <Card className="glass-panel">
+      <CardHeader>
+        <CardTitle>Executive highlights</CardTitle>
+        <CardDescription>Short operational readout for leadership and shift leads.</CardDescription>
+      </CardHeader>
+      <CardContent className="grid gap-3">
+        <MetricLine label="Fleet uptime" value={`${snapshot.fleetUptime}%`} />
+        <MetricLine label="Delivery success" value={`${snapshot.deliverySuccessRate}%`} />
+        <MetricLine label="Missing-item reduction" value={`${snapshot.missingItemReduction}%`} />
+        <MetricLine label="AI escalation reduction" value={`${snapshot.aiEscalationReduction}%`} />
+        <div className="rounded-lg border border-white/10 bg-background/60 p-4 text-sm leading-6 text-muted-foreground">
+          {snapshot.executiveSummaries[0]}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 function MultiAgentSupervisorDashboard() {
   const snapshot = multiAgentSupervisorSnapshot;
   const activeCount = snapshot.activeAgents.filter((agent) => agent.status === "active").length;
@@ -4532,6 +4693,51 @@ function RightRail({
                 <p className="truncate text-sm font-semibold">{lead.company}</p>
                 <p className="text-xs text-muted-foreground">Score {lead.score}</p>
               </div>
+            </div>
+          ))}
+        </CardContent>
+      </Card>
+    </aside>
+  );
+}
+
+function SmartDashRail() {
+  const topStore = merchantPerformanceRecords.slice().sort((a, b) => a.storeScore - b.storeScore)[0];
+  const topFleetRisk = fleetHealthPredictions.slice().sort((a, b) => b.fleetDowntimeRisk - a.fleetDowntimeRisk)[0];
+
+  return (
+    <aside className="hidden flex-col gap-4 lg:flex">
+      <Card className="glass-panel">
+        <CardHeader>
+          <CardTitle>Operations focus</CardTitle>
+          <CardDescription>Highest-priority network watch items.</CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-3">
+          <div className="rounded-md bg-white/5 p-3">
+            <p className="text-sm font-semibold">Top merchant risk</p>
+            <p className="mt-2 text-sm text-muted-foreground">{topStore.storeName}</p>
+            <p className="mt-1 text-xs text-muted-foreground">{topStore.mainOperationalIssue}</p>
+          </div>
+          <div className="rounded-md bg-white/5 p-3">
+            <p className="text-sm font-semibold">Top fleet risk</p>
+            <p className="mt-2 text-sm text-muted-foreground">{topFleetRisk.robotName}</p>
+            <p className="mt-1 text-xs text-muted-foreground">{topFleetRisk.likelyComponentFailure}</p>
+          </div>
+        </CardContent>
+      </Card>
+      <Card className="glass-panel">
+        <CardHeader>
+          <CardTitle>Supervisor queue</CardTitle>
+          <CardDescription>{multiAgentSupervisorSnapshot.operationalQueue.length} coordination items in flight.</CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-3">
+          {multiAgentSupervisorSnapshot.operationalQueue.slice(0, 4).map((item) => (
+            <div key={item.id} className="rounded-md bg-white/5 p-3">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-sm font-semibold">{item.ownerAgent}</p>
+                <Badge variant={item.priority === "critical" || item.priority === "high" ? "accent" : "secondary"}>{item.priority}</Badge>
+              </div>
+              <p className="mt-2 text-xs text-muted-foreground">{item.incidentTitle}</p>
             </div>
           ))}
         </CardContent>
