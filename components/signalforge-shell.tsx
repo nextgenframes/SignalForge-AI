@@ -187,6 +187,13 @@ export function SignalForgeShell({ activePage = "Dashboard", landing = false }: 
   const [smartscaleSeverity, setSmartscaleSeverity] = useState("All severities");
   const [smartscaleDeviceStatus, setSmartscaleDeviceStatus] = useState("All devices");
   const [smartscaleDateRange, setSmartscaleDateRange] = useState("Today");
+  const isSmartDashMode = appMode === "smartdash";
+  const isSmartScalePage = resolvedActivePage === "SmartScale Operations";
+
+  useEffect(() => {
+    document.body.classList.toggle("smartdash-body", isSmartDashMode);
+    return () => document.body.classList.remove("smartdash-body");
+  }, [isSmartDashMode]);
 
   const filteredLeads = useMemo(() => {
     return leads.filter((lead) => {
@@ -332,10 +339,10 @@ export function SignalForgeShell({ activePage = "Dashboard", landing = false }: 
   );
 
   return (
-    <main className="min-h-screen overflow-hidden bg-background text-foreground">
-      <div className="grid-fade pointer-events-none fixed inset-0 opacity-60" />
+    <main className={cn("min-h-screen overflow-hidden", isSmartDashMode ? "bg-background text-foreground" : "bg-background text-foreground")}>
+      <div className={cn("grid-fade pointer-events-none fixed inset-0 opacity-60", isSmartDashMode && "hidden")} />
       <div className="relative flex min-h-screen">
-        <Sidebar activePage={resolvedActivePage} open={mobileNavOpen} setOpen={setMobileNavOpen} />
+        <Sidebar activePage={resolvedActivePage} open={mobileNavOpen} setOpen={setMobileNavOpen} smartDashMode={isSmartDashMode} />
         <section className="flex min-w-0 flex-1 flex-col">
           <Topbar
             activePage={resolvedActivePage}
@@ -343,6 +350,7 @@ export function SignalForgeShell({ activePage = "Dashboard", landing = false }: 
             setAgentLauncherOpen={setAgentLauncherOpen}
             setMobileNavOpen={setMobileNavOpen}
             setNotificationsOpen={setNotificationsOpen}
+            smartDashMode={isSmartDashMode}
           />
           {landing ? (
             <>
@@ -350,9 +358,14 @@ export function SignalForgeShell({ activePage = "Dashboard", landing = false }: 
               <LandingSections />
             </>
           ) : (
-            <div className="grid flex-1 gap-4 p-4 lg:grid-cols-[minmax(0,1fr)_340px] lg:p-6">
+            <div
+              className={cn(
+                "grid flex-1 gap-4 p-4 lg:p-6",
+                isSmartScalePage ? "min-[1700px]:grid-cols-[minmax(0,1fr)_320px]" : "lg:grid-cols-[minmax(0,1fr)_340px]"
+              )}
+            >
               <div className="min-w-0">{mainContent}</div>
-              {resolvedActivePage === "SmartScale Operations" ? (
+              {isSmartScalePage ? (
                 <SmartScaleRail checks={visibleSmartScaleChecks} />
               ) : appMode === "signalforge" ? (
                 <RightRail selectedLead={selectedLead} savedIds={savedIds} runGeneration={runGeneration} isGenerating={isGenerating} />
@@ -368,21 +381,24 @@ export function SignalForgeShell({ activePage = "Dashboard", landing = false }: 
   );
 }
 
-function Sidebar({ activePage, open, setOpen }: { activePage: string; open: boolean; setOpen: (open: boolean) => void }) {
+function Sidebar({ activePage, open, setOpen, smartDashMode = false }: { activePage: string; open: boolean; setOpen: (open: boolean) => void; smartDashMode?: boolean }) {
   return (
     <aside
       className={cn(
-        "glass-panel fixed inset-y-0 left-0 z-40 flex w-72 -translate-x-full flex-col p-4 transition-transform lg:static lg:translate-x-0",
+        "fixed inset-y-0 left-0 z-40 flex w-72 -translate-x-full flex-col p-4 transition-transform lg:static lg:translate-x-0",
+        smartDashMode
+          ? "border-r border-slate-200 bg-white text-slate-900 shadow-[12px_0_32px_rgba(15,23,42,0.05)]"
+          : "glass-panel",
         open && "translate-x-0"
       )}
     >
       <div className="flex items-center justify-between">
         <a href="/" className="flex items-center gap-3">
-          <div className="signal-ring grid size-10 place-items-center rounded-lg">
-            <Sparkles className="size-5 text-background" />
+          <div className={cn("grid size-10 place-items-center rounded-lg", smartDashMode ? "bg-[#eb1700]" : "signal-ring")}>
+            <Sparkles className={cn("size-5", smartDashMode ? "text-white" : "text-background")} />
           </div>
           <div>
-            <p className="text-sm font-semibold text-muted-foreground">{appBrand.eyebrow}</p>
+            <p className={cn("text-sm font-semibold", smartDashMode ? "text-slate-500" : "text-muted-foreground")}>{appBrand.eyebrow}</p>
             <h1 className="text-xl font-bold tracking-tight">{appBrand.title}</h1>
           </div>
         </a>
@@ -398,8 +414,11 @@ function Sidebar({ activePage, open, setOpen }: { activePage: string; open: bool
               key={item}
               href={pageHref(item)}
               className={cn(
-                "flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-white/8 hover:text-foreground",
-                activePage === item && "bg-primary/12 text-primary"
+                "flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium transition-colors",
+                smartDashMode
+                  ? "text-slate-600 hover:bg-slate-100 hover:text-slate-950"
+                  : "text-muted-foreground hover:bg-white/8 hover:text-foreground",
+                activePage === item && (smartDashMode ? "bg-[#fff1ef] text-[#eb1700]" : "bg-primary/12 text-primary")
               )}
             >
               <Icon className="size-4" />
@@ -408,12 +427,12 @@ function Sidebar({ activePage, open, setOpen }: { activePage: string; open: bool
           );
         })}
       </nav>
-      <div className="mt-auto rounded-lg border border-white/10 bg-white/5 p-4">
+      <div className={cn("mt-auto rounded-lg border p-4", smartDashMode ? "border-slate-200 bg-slate-50" : "border-white/10 bg-white/5")}>
         <div className="flex items-center gap-2 text-sm font-semibold">
-          <Lock className="size-4 text-accent" />
+          <Lock className={cn("size-4", smartDashMode ? "text-[#eb1700]" : "text-accent")} />
           {appBrand.footerTitle}
         </div>
-        <p className="mt-2 text-xs leading-5 text-muted-foreground">{appBrand.footerBody}</p>
+        <p className={cn("mt-2 text-xs leading-5", smartDashMode ? "text-slate-500" : "text-muted-foreground")}>{appBrand.footerBody}</p>
       </div>
     </aside>
   );
@@ -424,13 +443,15 @@ function Topbar({
   notificationsOpen,
   setAgentLauncherOpen,
   setMobileNavOpen,
-  setNotificationsOpen
+  setNotificationsOpen,
+  smartDashMode = false
 }: {
   activePage: string;
   notificationsOpen: boolean;
   setAgentLauncherOpen: (open: boolean) => void;
   setMobileNavOpen: (open: boolean) => void;
   setNotificationsOpen: (open: boolean) => void;
+  smartDashMode?: boolean;
 }) {
   const notifications =
     appMode === "signalforge"
@@ -446,33 +467,44 @@ function Topbar({
         ];
 
   return (
-    <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-white/10 bg-background/76 px-4 backdrop-blur-xl lg:px-6">
-      <Button className="lg:hidden" size="icon" variant="ghost" onClick={() => setMobileNavOpen(true)} aria-label="Open navigation">
+    <header
+      className={cn(
+        "sticky top-0 z-30 flex h-16 items-center gap-3 border-b px-4 backdrop-blur-xl lg:px-6",
+        smartDashMode ? "border-slate-200 bg-white/92 text-slate-900" : "border-white/10 bg-background/76"
+      )}
+    >
+      <Button className={cn("lg:hidden", smartDashMode && "text-slate-700 hover:bg-slate-100 hover:text-slate-950")} size="icon" variant="ghost" onClick={() => setMobileNavOpen(true)} aria-label="Open navigation">
         <Menu className="size-4" />
       </Button>
       <div className="min-w-0">
-        <p className="hidden text-xs text-muted-foreground sm:block">{appBrand.subtitle}</p>
+        <p className={cn("hidden text-xs sm:block", smartDashMode ? "text-slate-500" : "text-muted-foreground")}>{appBrand.subtitle}</p>
         <h2 className="truncate text-lg font-semibold">{activePage}</h2>
       </div>
-      <div className="ml-auto hidden min-w-72 items-center gap-2 rounded-md border border-white/10 bg-white/5 px-3 py-2 md:flex">
-        <Search className="size-4 text-muted-foreground" />
-        <span className="text-sm text-muted-foreground">{appBrand.searchPlaceholder}</span>
+      <div className={cn("ml-auto hidden min-w-72 items-center gap-2 rounded-md border px-3 py-2 md:flex", smartDashMode ? "border-slate-200 bg-slate-50" : "border-white/10 bg-white/5")}>
+        <Search className={cn("size-4", smartDashMode ? "text-slate-400" : "text-muted-foreground")} />
+        <span className={cn("text-sm", smartDashMode ? "text-slate-500" : "text-muted-foreground")}>{appBrand.searchPlaceholder}</span>
       </div>
       <div className="relative">
-      <Button size="icon" variant="outline" aria-label="Notifications" onClick={() => setNotificationsOpen(!notificationsOpen)}>
+      <Button
+        size="icon"
+        variant="outline"
+        className={cn(smartDashMode && "border-slate-200 bg-white text-slate-700 shadow-none hover:bg-slate-50")}
+        aria-label="Notifications"
+        onClick={() => setNotificationsOpen(!notificationsOpen)}
+      >
         <Bell className="size-4" />
       </Button>
       {notificationsOpen ? (
-        <div className="glass-panel absolute right-0 top-12 z-50 w-72 rounded-lg p-3">
+        <div className={cn("absolute right-0 top-12 z-50 w-72 rounded-lg p-3", smartDashMode ? "border border-slate-200 bg-white text-slate-900 shadow-[0_18px_56px_rgba(15,23,42,0.12)]" : "glass-panel")}>
           {notifications.map((item) => (
-            <div key={item} className="rounded-md px-3 py-2 text-sm text-muted-foreground hover:bg-white/5">
+            <div key={item} className={cn("rounded-md px-3 py-2 text-sm", smartDashMode ? "text-slate-600 hover:bg-slate-50" : "text-muted-foreground hover:bg-white/5")}>
               {item}
             </div>
           ))}
         </div>
       ) : null}
       </div>
-      <Button onClick={() => setAgentLauncherOpen(true)}>
+      <Button className={cn(smartDashMode && "bg-[#eb1700] text-white shadow-none hover:bg-[#d81500]")} onClick={() => setAgentLauncherOpen(true)}>
         <Sparkles className="size-4" data-icon="inline-start" />
         <span className="hidden sm:inline">New agent</span>
         <span className="sm:hidden">New</span>
@@ -3645,6 +3677,13 @@ function SmartScaleOperations({
     }))
     .sort((a, b) => b.issueCount - a.issueCount)
     .slice(0, 5);
+  const topQueue = checks
+    .slice()
+    .sort((a, b) => {
+      const severityOrder = { critical: 4, high: 3, medium: 2, low: 1 };
+      return severityOrder[b.severity] - severityOrder[a.severity];
+    })
+    .slice(0, 4);
 
   const metrics = [
     ["Total checks today", todaysChecks.length.toString(), "Live order scans", Scale],
@@ -3661,27 +3700,29 @@ function SmartScaleOperations({
     <div className="flex flex-col gap-4">
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         {metrics.map(([label, value, caption, Icon]) => (
-          <Card key={label as string} className="glass-panel">
+          <Card key={label as string} className="overflow-hidden border border-[#eb1700]/12 bg-white text-slate-900 shadow-[0_10px_32px_rgba(15,23,42,0.06)]">
             <CardHeader className="flex-row items-start justify-between p-4">
               <div>
-                <CardDescription>{label as string}</CardDescription>
+                <CardDescription className="text-slate-500">{label as string}</CardDescription>
                 <CardTitle className="mt-2 text-2xl">{value as string}</CardTitle>
-                <p className="mt-2 text-xs text-muted-foreground">{caption as string}</p>
+                <p className="mt-2 text-xs text-slate-500">{caption as string}</p>
               </div>
-              <div className="grid size-10 place-items-center rounded-md bg-white/8">
-                <Icon className="size-4 text-primary" />
+              <div className="grid size-10 place-items-center rounded-md bg-[#fff1ef]">
+                <Icon className="size-4 text-[#eb1700]" />
               </div>
             </CardHeader>
           </Card>
         ))}
       </div>
 
+      <SmartScaleQueueHero checks={topQueue} />
+
       <SmartScaleWorkflow />
 
-      <Card className="glass-panel">
-        <CardHeader>
-          <CardTitle>Operations filters</CardTitle>
-          <CardDescription>Slice by store, issue, severity, device health, and time window.</CardDescription>
+      <Card className="overflow-hidden border border-slate-200 bg-white text-slate-900 shadow-[0_10px_32px_rgba(15,23,42,0.06)]">
+        <CardHeader className="border-b border-slate-200 bg-slate-50/80">
+          <CardTitle>Queue filters</CardTitle>
+          <CardDescription className="text-slate-500">Slice by store, issue, severity, device health, and time window.</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
           <FilterSelect label="Store" value={storeFilter} onChange={setStoreFilter} options={storeOptions} />
@@ -3689,33 +3730,39 @@ function SmartScaleOperations({
           <FilterSelect label="Severity" value={severityFilter} onChange={setSeverityFilter} options={severityOptions} />
           <FilterSelect label="Device status" value={deviceFilter} onChange={setDeviceFilter} options={deviceOptions} />
           <FilterSelect label="Date range" value={dateRange} onChange={setDateRange} options={["Today", "Last 7 days", "Last 30 days", "All time"]} />
-          <div className="rounded-lg border border-white/10 bg-white/5 p-3">
-            <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Visible orders</p>
+          <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+            <p className="text-xs uppercase tracking-[0.16em] text-slate-500">Visible orders</p>
             <p className="mt-2 text-2xl font-semibold">{checks.length}</p>
           </div>
         </CardContent>
       </Card>
 
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.3fr)_minmax(320px,0.7fr)]">
+      <div className="grid gap-4 2xl:grid-cols-[minmax(0,1.3fr)_minmax(320px,0.7fr)]">
         <SmartScaleChecksTable checks={checks} />
-        <Card className="glass-panel">
-          <CardHeader>
-            <CardTitle>Top stores by SmartScale issues</CardTitle>
-            <CardDescription>Fast scan for repeated mismatch and handoff friction.</CardDescription>
+        <Card className="overflow-hidden border border-slate-200 bg-white text-slate-900 shadow-[0_10px_32px_rgba(15,23,42,0.06)]">
+          <CardHeader className="border-b border-slate-200 bg-slate-50/80">
+            <CardTitle>Store issue board</CardTitle>
+            <CardDescription className="text-slate-500">Fast scan for repeated mismatch and handoff friction.</CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col gap-3">
             {topStores.map((store) => (
-              <div key={store.id} className="rounded-lg border border-white/10 bg-white/5 p-4">
+              <div key={store.id} className="rounded-xl border border-slate-200 bg-white p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <p className="font-semibold">{store.store}</p>
-                    <p className="text-sm text-muted-foreground">{store.market}</p>
+                    <p className="text-sm text-slate-500">{store.market}</p>
                   </div>
-                  <Badge variant={store.issueCount > 1 ? "accent" : "secondary"}>{store.issueCount} issues</Badge>
+                  <span className={cn("rounded-full px-2.5 py-1 text-[11px] font-semibold", store.issueCount > 1 ? "bg-[#eb1700] text-white" : "bg-slate-100 text-slate-700")}>
+                    {store.issueCount} issues
+                  </span>
+                </div>
+                <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                  <DoorDashMockMetric label="Adoption" value={`${store.adoptionScore}%`} />
+                  <DoorDashMockMetric label="Orders reviewed" value={checks.filter((check) => check.storeId === store.id && check.result !== "pass").length.toString()} />
                 </div>
                 <div className="mt-4">
-                  <div className="flex items-center justify-between text-xs text-muted-foreground">
-                    <span>Adoption</span>
+                  <div className="flex items-center justify-between text-xs text-slate-500">
+                    <span>Scale usage health</span>
                     <span>{store.adoptionScore}%</span>
                   </div>
                   <Progress className="mt-2" value={store.adoptionScore} />
@@ -3725,6 +3772,101 @@ function SmartScaleOperations({
           </CardContent>
         </Card>
       </div>
+    </div>
+  );
+}
+
+function SmartScaleQueueHero({ checks }: { checks: SmartScaleCheck[] }) {
+  return (
+    <div className="overflow-hidden rounded-2xl border border-[#eb1700]/20 bg-[#fff7f5] text-slate-900 shadow-[0_18px_56px_rgba(235,23,0,0.12)]">
+      <div className="border-b border-slate-200 bg-white px-5 py-5">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#eb1700]">Selected direction</p>
+            <h3 className="mt-1 text-2xl font-semibold">Live verification queue</h3>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">
+              A DoorDash-style SmartScale surface built for quick scanning, clear urgency, and faster handoff decisions during rush windows.
+            </p>
+          </div>
+          <div className="flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-600">
+            <Clock3 className="size-3.5" />
+            Rush-hour mode
+          </div>
+        </div>
+        <div className="mt-4 grid gap-3 sm:grid-cols-3">
+          <div className="rounded-lg bg-slate-50 p-3">
+            <p className="text-xs text-slate-500">Orders in queue</p>
+            <p className="mt-1 text-2xl font-semibold">{checks.length}</p>
+          </div>
+          <div className="rounded-lg bg-slate-50 p-3">
+            <p className="text-xs text-slate-500">Held ready signals</p>
+            <p className="mt-1 text-2xl font-semibold">{checks.filter((check) => !check.orderReadySignalAccurate).length}</p>
+          </div>
+          <div className="rounded-lg bg-slate-50 p-3">
+            <p className="text-xs text-slate-500">Avg Dasher wait</p>
+            <p className="mt-1 text-2xl font-semibold">
+              {Math.round(checks.reduce((sum, check) => sum + check.dasherWaitTime, 0) / Math.max(checks.length, 1))}m
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid gap-3 p-5 xl:grid-cols-2">
+        {checks.map((check) => {
+          const store = smartscaleStores.find((item) => item.id === check.storeId);
+          return (
+            <div key={check.id} className="rounded-xl border border-slate-200 bg-white p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <p className="font-semibold">{check.orderId}</p>
+                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600">{store?.store}</span>
+                  </div>
+                  <p className="mt-1 text-sm text-slate-500">{check.aiRecommendation}</p>
+                </div>
+                <span
+                  className={cn(
+                    "rounded-full px-2.5 py-1 text-[11px] font-semibold",
+                    check.severity === "critical"
+                      ? "bg-[#eb1700] text-white"
+                      : check.severity === "high"
+                        ? "bg-[#ffd9d3] text-[#b42318]"
+                        : "bg-slate-100 text-slate-700"
+                  )}
+                >
+                  {check.severity}
+                </span>
+              </div>
+              <div className="mt-4 grid gap-2 sm:grid-cols-4">
+                <DoorDashMockMetric label="Expected" value={`${check.expectedWeight}g`} />
+                <DoorDashMockMetric label="Actual" value={`${check.actualWeight}g`} />
+                <DoorDashMockMetric label="Delta" value={`${check.difference > 0 ? "+" : ""}${check.difference}g`} />
+                <DoorDashMockMetric label="Wait" value={`${check.dasherWaitTime}m`} />
+              </div>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <button type="button" className="rounded-full bg-[#eb1700] px-3 py-1.5 text-xs font-semibold text-white">
+                  Fix now
+                </button>
+                <button type="button" className="rounded-full border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700">
+                  Hold ready
+                </button>
+                <button type="button" className="rounded-full border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700">
+                  Notify Dasher
+                </button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function DoorDashMockMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg bg-slate-50 p-3">
+      <p className="text-[11px] font-medium uppercase tracking-[0.12em] text-slate-500">{label}</p>
+      <p className="mt-1 text-sm font-semibold text-slate-900">{value}</p>
     </div>
   );
 }
@@ -3741,23 +3883,33 @@ function SmartScaleWorkflow() {
   ];
 
   return (
-    <Card className="glass-panel">
-      <CardHeader>
-        <CardTitle>SmartScale workflow</CardTitle>
-        <CardDescription>Packed order to verified handoff, with AI triage and escalation gates.</CardDescription>
+    <Card className="overflow-hidden border border-slate-200 bg-white text-slate-900 shadow-[0_10px_32px_rgba(15,23,42,0.06)]">
+      <CardHeader className="border-b border-slate-200 bg-[linear-gradient(180deg,rgba(255,247,245,0.9),rgba(255,255,255,1))]">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#eb1700]">Operator flow</p>
+            <CardTitle className="mt-1">SmartScale workflow</CardTitle>
+            <CardDescription className="mt-2 max-w-2xl text-slate-500">
+              Packed order to verified handoff, with AI triage and escalation gates kept visible for the line team.
+            </CardDescription>
+          </div>
+          <div className="rounded-full bg-[#fff1ef] px-3 py-1.5 text-xs font-medium text-[#b42318]">Ready signal stays blocked until mismatch is cleared</div>
+        </div>
       </CardHeader>
-      <CardContent className="flex flex-col gap-4">
-        <div className="grid gap-3 xl:grid-cols-7">
+      <CardContent className="flex flex-col gap-4 p-4">
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
           {steps.map(([step, title, body, Icon]) => (
-            <div key={step as string} className="rounded-lg border border-white/10 bg-white/5 p-4">
+            <div key={step as string} className="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
               <div className="flex items-center justify-between gap-3">
-                <Badge variant="secondary">Step {step as string}</Badge>
-                <div className="grid size-9 place-items-center rounded-md bg-primary/12">
-                  <Icon className="size-4 text-primary" />
+                <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+                  Step {step as string}
+                </span>
+                <div className="grid size-9 place-items-center rounded-md bg-[#fff1ef]">
+                  <Icon className="size-4 text-[#eb1700]" />
                 </div>
               </div>
-              <p className="mt-4 font-semibold">{title as string}</p>
-              <p className="mt-2 text-sm leading-6 text-muted-foreground">{body as string}</p>
+              <p className="mt-4 text-sm font-semibold text-slate-900">{title as string}</p>
+              <p className="mt-2 text-sm leading-6 text-slate-500">{body as string}</p>
             </div>
           ))}
         </div>
@@ -3801,18 +3953,20 @@ function SmartScaleWorkflow() {
 
 function SmartScaleFlowBranch({ title, badge, lines }: { title: string; badge: string; lines: string[] }) {
   return (
-    <div className="rounded-lg border border-white/10 bg-white/5 p-4">
+    <div className="rounded-xl border border-slate-200 bg-white p-4">
       <div className="flex items-center justify-between gap-3">
-        <p className="font-semibold">{title}</p>
-        <Badge variant="accent">{badge}</Badge>
+        <p className="font-semibold text-slate-900">{title}</p>
+        <span className={cn("rounded-full px-2.5 py-1 text-[11px] font-semibold", badge === "Fast handoff" ? "bg-[#eb1700] text-white" : "bg-[#fff1ef] text-[#b42318]")}>
+          {badge}
+        </span>
       </div>
       <div className="mt-4 flex flex-col gap-3">
         {lines.map((line, index) => (
           <div key={line} className="flex items-start gap-3">
-            <div className="mt-0.5 grid size-6 shrink-0 place-items-center rounded-full border border-white/10 bg-background text-xs text-muted-foreground">
+            <div className="mt-0.5 grid size-6 shrink-0 place-items-center rounded-full border border-slate-200 bg-slate-50 text-xs font-medium text-slate-500">
               {index + 1}
             </div>
-            <p className="text-sm leading-6 text-muted-foreground">{line}</p>
+            <p className="text-sm leading-6 text-slate-500">{line}</p>
           </div>
         ))}
       </div>
@@ -3823,14 +3977,14 @@ function SmartScaleFlowBranch({ title, badge, lines }: { title: string; badge: s
 function FilterSelect({ label, value, onChange, options }: { label: string; value: string; onChange: (value: string) => void; options: string[] }) {
   return (
     <div className="flex flex-col gap-2">
-      <label className="text-xs font-medium text-muted-foreground">{label}</label>
+      <label className="text-xs font-medium text-slate-500">{label}</label>
       <select
-        className="h-10 rounded-md border border-input bg-white/5 px-3 text-sm text-foreground outline-none"
+        className="h-10 rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none"
         value={value}
         onChange={(event) => onChange(event.target.value)}
       >
         {options.map((option) => (
-          <option key={option} className="bg-card">
+          <option key={option} className="bg-white">
             {option.includes("_") ? formatIssueLabel(option) : option}
           </option>
         ))}
@@ -3841,23 +3995,28 @@ function FilterSelect({ label, value, onChange, options }: { label: string; valu
 
 function SmartScaleChecksTable({ checks }: { checks: SmartScaleCheck[] }) {
   return (
-    <Card className="glass-panel overflow-hidden">
-      <CardHeader>
-        <CardTitle>SmartScale order checks</CardTitle>
-        <CardDescription>Order-level triage before Dasher handoff.</CardDescription>
+    <Card className="overflow-hidden border border-slate-200 bg-white text-slate-900 shadow-[0_10px_32px_rgba(15,23,42,0.06)]">
+      <CardHeader className="border-b border-slate-200 bg-slate-50/80">
+        <CardTitle>Verification queue</CardTitle>
+        <CardDescription className="text-slate-500">Order-level triage before Dasher handoff.</CardDescription>
       </CardHeader>
       <CardContent className="p-0">
         <div className="grid gap-3 p-4 md:hidden">
           {checks.map((check) => {
             const store = smartscaleStores.find((item) => item.id === check.storeId);
             return (
-              <div key={check.id} className="rounded-lg border border-white/10 bg-white/5 p-4">
+              <div key={check.id} className="rounded-xl border border-slate-200 bg-white p-4 shadow-[0_8px_24px_rgba(15,23,42,0.05)]">
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <p className="font-semibold">{check.orderId}</p>
-                    <p className="text-xs text-muted-foreground">{store?.store}</p>
+                    <div className="flex items-center gap-2">
+                      <p className="font-semibold">{check.orderId}</p>
+                      <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600">{store?.store}</span>
+                    </div>
+                    <p className="mt-1 text-xs uppercase tracking-[0.12em] text-slate-500">{formatIssueLabel(check.issueType)}</p>
                   </div>
-                  <Badge variant={check.severity === "critical" || check.severity === "high" ? "accent" : "secondary"}>{check.result}</Badge>
+                  <span className={cn("rounded-full px-2.5 py-1 text-[11px] font-semibold", check.severity === "critical" || check.severity === "high" ? "bg-[#eb1700] text-white" : "bg-slate-100 text-slate-700")}>
+                    {check.result}
+                  </span>
                 </div>
                 <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
                   <MetricLine label="Expected" value={`${check.expectedWeight} g`} />
@@ -3865,14 +4024,22 @@ function SmartScaleChecksTable({ checks }: { checks: SmartScaleCheck[] }) {
                   <MetricLine label="Difference" value={`${check.difference > 0 ? "+" : ""}${check.difference} g`} />
                   <MetricLine label="Issue" value={formatIssueLabel(check.issueType)} />
                 </div>
-                <p className="mt-3 text-sm leading-6 text-muted-foreground">{check.aiRecommendation}</p>
+                <p className="mt-3 text-sm leading-6 text-slate-500">{check.aiRecommendation}</p>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <button type="button" className="rounded-full bg-[#eb1700] px-3 py-1.5 text-xs font-semibold text-white">
+                    Fix now
+                  </button>
+                  <button type="button" className="rounded-full border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700">
+                    Hold ready
+                  </button>
+                </div>
               </div>
             );
           })}
         </div>
         <div className="scrollbar-thin hidden overflow-x-auto md:block">
-          <table className="w-full min-w-[1180px] border-collapse text-sm">
-            <thead className="border-y border-white/10 bg-white/5 text-left text-xs uppercase tracking-[0.16em] text-muted-foreground">
+          <table className="w-full min-w-[1040px] border-collapse text-sm">
+            <thead className="border-y border-slate-200 bg-slate-50 text-left text-xs uppercase tracking-[0.16em] text-slate-500">
               <tr>
                 <th className="px-5 py-3 font-medium">Order ID</th>
                 <th className="px-5 py-3 font-medium">Store</th>
@@ -3889,22 +4056,24 @@ function SmartScaleChecksTable({ checks }: { checks: SmartScaleCheck[] }) {
               {checks.map((check) => {
                 const store = smartscaleStores.find((item) => item.id === check.storeId);
                 return (
-                  <tr key={check.id} className="border-b border-white/8 transition-colors hover:bg-white/5">
+                  <tr key={check.id} className="border-b border-slate-100 transition-colors hover:bg-slate-50/80">
                     <td className="px-5 py-4 font-semibold">{check.orderId}</td>
-                    <td className="px-5 py-4 text-muted-foreground">{store?.store}</td>
+                    <td className="px-5 py-4 text-slate-500">{store?.store}</td>
                     <td className="px-5 py-4">{check.expectedWeight} g</td>
                     <td className="px-5 py-4">{check.actualWeight} g</td>
-                    <td className={cn("px-5 py-4 font-medium", check.difference < 0 ? "text-destructive" : check.difference > 0 ? "text-accent" : "text-foreground")}>
+                    <td className={cn("px-5 py-4 font-medium", check.difference < 0 ? "text-[#b42318]" : check.difference > 0 ? "text-[#eb1700]" : "text-slate-900")}>
                       {check.difference > 0 ? "+" : ""}
                       {check.difference} g
                     </td>
                     <td className="px-5 py-4">
-                      <Badge variant={check.result === "pass" ? "secondary" : "accent"}>{check.result}</Badge>
+                      <span className={cn("rounded-full px-2.5 py-1 text-[11px] font-semibold", check.result === "pass" ? "bg-slate-100 text-slate-700" : "bg-[#fff1ef] text-[#b42318]")}>
+                        {check.result}
+                      </span>
                     </td>
-                    <td className="px-5 py-4 text-muted-foreground">{formatIssueLabel(check.issueType)}</td>
-                    <td className="max-w-sm px-5 py-4 text-muted-foreground">{check.aiRecommendation}</td>
+                    <td className="px-5 py-4 text-slate-500">{formatIssueLabel(check.issueType)}</td>
+                    <td className="max-w-xs px-5 py-4 text-slate-500">{check.aiRecommendation}</td>
                     <td className="px-5 py-4">
-                      <Badge variant="secondary">{check.status}</Badge>
+                      <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-700">{check.status}</span>
                     </td>
                   </tr>
                 );
@@ -4751,40 +4920,58 @@ function SmartScaleRail({ checks }: { checks: SmartScaleCheck[] }) {
   const urgentChecks = checks.filter((check) => check.severity === "critical" || check.severity === "high");
 
   return (
-    <aside className="hidden flex-col gap-4 lg:flex">
-      <Card className="glass-panel">
-        <CardHeader>
+    <aside className="hidden flex-col gap-4 min-[1700px]:flex">
+      <Card className="overflow-hidden border border-slate-200 bg-white text-slate-900 shadow-[0_10px_32px_rgba(15,23,42,0.06)]">
+        <CardHeader className="border-b border-slate-200 bg-[linear-gradient(180deg,rgba(255,247,245,0.9),rgba(255,255,255,1))]">
           <CardTitle>Urgent queue</CardTitle>
-          <CardDescription>{urgentChecks.length} orders need fast intervention.</CardDescription>
+          <CardDescription className="text-slate-500">{urgentChecks.length} orders need fast intervention.</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-3">
           {urgentChecks.slice(0, 4).map((check) => (
-            <div key={check.id} className="rounded-md bg-white/5 p-3">
+            <div key={check.id} className="rounded-xl border border-slate-200 bg-white p-3">
               <div className="flex items-center justify-between gap-2">
                 <p className="text-sm font-semibold">{check.orderId}</p>
-                <Badge variant="accent">{check.severity}</Badge>
+                <span className="rounded-full bg-[#eb1700] px-2.5 py-1 text-[11px] font-semibold text-white">{check.severity}</span>
               </div>
-              <p className="mt-2 text-xs text-muted-foreground">{check.aiRecommendation}</p>
+              <p className="mt-2 text-xs text-slate-500">{check.aiRecommendation}</p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <button type="button" className="rounded-full bg-[#eb1700] px-3 py-1.5 text-[11px] font-semibold text-white">
+                  Fix now
+                </button>
+                <button type="button" className="rounded-full border border-slate-300 px-3 py-1.5 text-[11px] font-semibold text-slate-700">
+                  Notify Dasher
+                </button>
+              </div>
             </div>
           ))}
         </CardContent>
       </Card>
-      <Card className="glass-panel">
-        <CardHeader>
+      <Card className="overflow-hidden border border-slate-200 bg-white text-slate-900 shadow-[0_10px_32px_rgba(15,23,42,0.06)]">
+        <CardHeader className="border-b border-slate-200 bg-slate-50/80">
           <CardTitle>Device attention</CardTitle>
-          <CardDescription>{devicesNeedingAttention.length} scales off normal state.</CardDescription>
+          <CardDescription className="text-slate-500">{devicesNeedingAttention.length} scales off normal state.</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-3">
           {devicesNeedingAttention.map((device) => {
             const store = smartscaleStores.find((item) => item.id === device.storeId);
             return (
-              <div key={device.id} className="rounded-md bg-white/5 p-3">
+              <div key={device.id} className="rounded-xl border border-slate-200 bg-white p-3">
                 <div className="flex items-center justify-between gap-2">
                   <p className="text-sm font-semibold">{device.name}</p>
-                  <Badge variant={device.status === "offline" ? "accent" : "secondary"}>{device.status}</Badge>
+                  <span className={cn("rounded-full px-2.5 py-1 text-[11px] font-semibold", device.status === "offline" ? "bg-[#eb1700] text-white" : "bg-slate-100 text-slate-700")}>
+                    {device.status}
+                  </span>
                 </div>
-                <p className="mt-1 text-xs text-muted-foreground">{store?.store}</p>
-                <p className="mt-2 text-xs text-muted-foreground">Calibration: {device.calibrationStatus}</p>
+                <p className="mt-1 text-xs text-slate-500">{store?.store}</p>
+                <p className="mt-2 text-xs text-slate-500">Calibration: {device.calibrationStatus}</p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <button type="button" className="rounded-full border border-slate-300 px-3 py-1.5 text-[11px] font-semibold text-slate-700">
+                    Run check
+                  </button>
+                  <button type="button" className="rounded-full border border-[#eb1700]/25 bg-[#fff1ef] px-3 py-1.5 text-[11px] font-semibold text-[#b42318]">
+                    Escalate
+                  </button>
+                </div>
               </div>
             );
           })}

@@ -28,7 +28,7 @@ export const smartDashPages = [
 ] as const;
 
 export function getAppMode(): AppMode {
-  const rawMode = (process.env.NEXT_PUBLIC_APP_MODE ?? process.env.APP_MODE ?? "smartdash").toLowerCase();
+  const rawMode = (process.env.NEXT_PUBLIC_APP_MODE ?? process.env.APP_MODE ?? "signalforge").toLowerCase();
   return rawMode === "signalforge" ? "signalforge" : "smartdash";
 }
 
